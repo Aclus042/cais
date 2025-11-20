@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Diário do Capitão - Aventuras Marítimas</title>
+    <link rel="stylesheet" href="mestre.css">
+</head>
+<body>
+    <!-- SIDEBAR NAVIGATION -->
+    <div class="sidebar-overlay" id="sidebarOverlay"></div>
+    <aside class="sidebar" id="sidebar">
+        <div class="sidebar-header">
+            <h1 class="sidebar-title">Cais do Farol</h1>
+        </div>
+        <nav class="sidebar-nav">
+            <button class="nav-item active" data-view="locais">
+                <span class="nav-label">Locais</span>
+            </button>
+            <button class="nav-item" data-view="npcs">
+                <span class="nav-label">NPCs</span>
+            </button>
+            <button class="nav-item" data-view="pistas">
+                <span class="nav-label">Pistas</span>
+            </button>
+            <button class="nav-item" data-view="monstros">
+                <span class="nav-label">Monstros</span>
+            </button>
+        </nav>
+        <div class="sidebar-footer">
+            <button class="btn-export" id="exportData">Exportar</button>
+            <button class="btn-import" id="importData">Importar</button>
+            <input type="file" id="importFile" accept=".json" style="display:none;">
+        </div>
+    </aside>
+
+    <!-- MAIN CONTENT AREA -->
+    <main class="main-container">
+        <button class="mobile-menu-toggle" id="mobileMenuToggle" aria-label="Menu">
+            <span></span>
+            <span></span>
+            <span></span>
+        </button>
+        
+        <!-- VIEW: LOCAIS -->
+        <section id="view-locais" class="view-section active">
+            <div class="view-header">
+                <div>
+                    <h2 class="view-title">Locais</h2>
+                    <p class="view-subtitle">Gerencie os locais da sua campanha</p>
+                </div>
+                <button class="btn-primary" id="btnAddLocal">
+                    <span>+</span> Criar Local
+                </button>
+            </div>
+            <div class="empty-state" id="emptyLocais">
+                <div class="empty-icon"></div>
+                <h3>Nenhum local criado ainda</h3>
+                <p>Comece criando seu primeiro local da campanha</p>
+                <button class="btn-primary" onclick="app.showForm('local')">Criar Primeiro Local</button>
+            </div>
+            <div id="locaisGrid" class="cards-grid"></div>
+        </section>
+
+        <!-- VIEW: NPCs -->
+        <section id="view-npcs" class="view-section">
+            <div class="view-header">
+                <div>
+                    <h2 class="view-title">NPCs</h2>
+                    <p class="view-subtitle">Gerencie os personagens não-jogadores</p>
+                </div>
+                <button class="btn-primary" id="btnAddNPC">
+                    <span>+</span> Criar NPC
+                </button>
+            </div>
+            <div class="empty-state" id="emptyNPCs">
+                <div class="empty-icon"></div>
+                <h3>Nenhum NPC criado ainda</h3>
+                <p>Comece criando seu primeiro personagem não-jogador</p>
+                <button class="btn-primary" onclick="app.showForm('npc')">Criar Primeiro NPC</button>
+            </div>
+            <div id="npcsGrid" class="cards-grid"></div>
+        </section>
+
+        <!-- VIEW: PISTAS -->
+        <section id="view-pistas" class="view-section">
+            <div class="view-header">
+                <div>
+                    <h2 class="view-title">Pistas</h2>
+                    <p class="view-subtitle">Gerencie as pistas da campanha</p>
+                </div>
+                <button class="btn-primary" id="btnAddPista">
+                    <span>+</span> Criar Pista
+                </button>
+            </div>
+            <div class="empty-state" id="emptyPistas">
+                <div class="empty-icon"></div>
+                <h3>Nenhuma pista criada ainda</h3>
+                <p>Comece criando sua primeira pista</p>
+                <button class="btn-primary" onclick="app.showForm('pista')">Criar Primeira Pista</button>
+            </div>
+            <div id="pistasGrid" class="cards-grid"></div>
+        </section>
+
+        <!-- VIEW: MONSTROS -->
+        <section id="view-monstros" class="view-section">
+            <div class="view-header">
+                <div>
+                    <h2 class="view-title">Monstros</h2>
+                    <p class="view-subtitle">Gerencie o bestiário da campanha</p>
+                </div>
+                <button class="btn-primary" id="btnAddMonstro">
+                    <span>+</span> Criar Monstro
+                </button>
+            </div>
+            <div class="empty-state" id="emptyMonstros">
+                <div class="empty-icon"></div>
+                <h3>Nenhum monstro criado ainda</h3>
+                <p>Comece criando seu primeiro monstro</p>
+                <button class="btn-primary" onclick="app.showForm('monstro')">Criar Primeiro Monstro</button>
+            </div>
+            <div id="monstrosGrid" class="cards-grid"></div>
+        </section>
+
+    </main>
+
+    <!-- MODAL UNIVERSAL -->
+    <div id="modal" class="modal">
+        <div class="modal-overlay"></div>
+        <div class="modal-dialog">
+            <div class="modal-header">
+                <h3 class="modal-title" id="modalTitle">Título</h3>
+                <button class="modal-close" id="modalClose">&times;</button>
+            </div>
+            <div class="modal-body" id="modalBody">
+                <!-- Conteúdo dinâmico -->
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL DE AJUSTE DE IMAGEM -->
+    <div id="imageModal" class="modal">
+        <div class="modal-overlay"></div>
+        <div class="modal-dialog image-modal">
+            <div class="modal-header">
+                <h3 class="modal-title">📐 Ajustar Tamanho da Imagem</h3>
+                <button class="modal-close" onclick="ImageManager.closeModal()">&times;</button>
+            </div>
+            <div class="modal-body image-modal-body">
+                <div class="image-preview-wrapper">
+                    <div id="imagePreview" class="image-preview-box"></div>
+                </div>
+                <div class="size-control">
+                    <label class="size-label">🔍 Zoom: <strong id="sizeValue">100%</strong></label>
+                    <input type="range" id="sizeSlider" min="50" max="150" value="100" step="5" 
+                           oninput="ImageManager.updateZoom()">
+                    <div class="size-hints">
+                        <span>Menos imagem</span>
+                        <span>Mais imagem</span>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn-secondary" onclick="ImageManager.closeModal()">✕ Cancelar</button>
+                <button class="btn-primary" onclick="ImageManager.confirmImage()">✓ Confirmar</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="mestre.js"></script>
+</body>
+</html>

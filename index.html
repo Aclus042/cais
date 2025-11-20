@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Diário do Capitão - Aventuras Marítimas</title>
+    <title>Cais do Farol - RPG Master Tools</title>
     <link rel="stylesheet" href="mestre.css">
 </head>
 <body>
@@ -26,6 +26,9 @@
             <button class="nav-item" data-view="monstros">
                 <span class="nav-label">Monstros</span>
             </button>
+            <button class="nav-item" data-view="brainstorm">
+                <span class="nav-label">Brainstorm</span>
+            </button>
         </nav>
         <div class="sidebar-footer">
             <button class="btn-export" id="exportData">Exportar</button>
@@ -47,7 +50,6 @@
             <div class="view-header">
                 <div>
                     <h2 class="view-title">Locais</h2>
-                    <p class="view-subtitle">Gerencie os locais da sua campanha</p>
                 </div>
                 <button class="btn-primary" id="btnAddLocal">
                     <span>+</span> Criar Local
@@ -67,7 +69,6 @@
             <div class="view-header">
                 <div>
                     <h2 class="view-title">NPCs</h2>
-                    <p class="view-subtitle">Gerencie os personagens não-jogadores</p>
                 </div>
                 <button class="btn-primary" id="btnAddNPC">
                     <span>+</span> Criar NPC
@@ -87,7 +88,6 @@
             <div class="view-header">
                 <div>
                     <h2 class="view-title">Pistas</h2>
-                    <p class="view-subtitle">Gerencie as pistas da campanha</p>
                 </div>
                 <button class="btn-primary" id="btnAddPista">
                     <span>+</span> Criar Pista
@@ -107,7 +107,6 @@
             <div class="view-header">
                 <div>
                     <h2 class="view-title">Monstros</h2>
-                    <p class="view-subtitle">Gerencie o bestiário da campanha</p>
                 </div>
                 <button class="btn-primary" id="btnAddMonstro">
                     <span>+</span> Criar Monstro
@@ -120,6 +119,45 @@
                 <button class="btn-primary" onclick="app.showForm('monstro')">Criar Primeiro Monstro</button>
             </div>
             <div id="monstrosGrid" class="cards-grid"></div>
+        </section>
+
+        <!-- VIEW: BRAINSTORM -->
+        <section id="view-brainstorm" class="view-section">
+            <div class="view-header">
+                <div>
+                    <h2 class="view-title">Brainstorm</h2>
+                </div>
+            </div>
+            
+            <div class="brainstorm-selector">
+                <h3>Escolha o tipo de ideia que deseja explorar:</h3>
+                <div class="brainstorm-categories">
+                    <button class="category-card" data-category="local">
+                        <span class="category-title">Locais</span>
+                        <span class="category-desc">Lugares misteriosos e interessantes</span>
+                    </button>
+                    <button class="category-card" data-category="npc">
+                        <span class="category-title">NPCs</span>
+                        <span class="category-desc">Personagens memoráveis</span>
+                    </button>
+                    <button class="category-card" data-category="pista">
+                        <span class="category-title">Pistas</span>
+                        <span class="category-desc">Documentos e evidências</span>
+                    </button>
+                    <button class="category-card" data-category="monstro">
+                        <span class="category-title">Monstros</span>
+                        <span class="category-desc">Criaturas únicas e desafiadoras</span>
+                    </button>
+                </div>
+            </div>
+
+            <div class="brainstorm-results hidden" id="brainstormResults">
+                <div class="results-header">
+                    <h3>Ideias Geradas</h3>
+                    <button class="btn-primary" id="generateMoreIdeas">🎲 Gerar Mais</button>
+                </div>
+                <div id="ideasGrid" class="ideas-grid"></div>
+            </div>
         </section>
 
     </main>

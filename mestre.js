@@ -1365,3 +1365,373 @@ document.addEventListener('DOMContentLoaded', () => {
     
     console.log('⚓ Cais do Farol inicializado!');
 });
+
+// ============================================
+// BRAINSTORM - GERADOR DE IDEIAS
+// ============================================
+
+const BrainstormGenerator = {
+    currentCategory: null,
+    
+    // Templates de ideias para cada categoria
+    templates: {
+        local: {
+            nomes: [
+                'A Âncora Partida', 'Gruta das Marés Sussurrantes', 'Observatório da Lua Sangrenta', 
+                'Escombros do Covenant Despedaçado', 'Ancoradouro dos Vendavais', 'Farol de Ashira',
+                'Santuário das Águas Negras', 'Feira dos Corsários', 'Bastilha das Correntes',
+                'Arquivo dos Nomes Proibidos', 'Necrotério dos Afogados', 'Solar Maremonte',
+                'Estalagem do Último Suspiro', 'Poço de Sal e Cinzas', 'Bosque dos Náufragos',
+                'Recife dos Condenados', 'Arquipélago Fantasma', 'Pináculo do Lamento',
+                'Garganta do Oceano', 'Charco das Almas Perdidas', 'Ermo de Vidro', 'Cratera Carmesim'
+            ],
+            adjetivos: [
+                'envolto em brumas eternas', 'marcado por presságios sinistros', 
+                'construído sobre ossos antigos', 'tocado pela maldição da maré',
+                'esquecido pelos mapas', 'consagrado a deuses mortos',
+                'interditado pela Guilda dos Faróis', 'envolto em sombras dançantes',
+                'iluminado por chamas que nunca morrem', 'escondido entre dobras da realidade',
+                'abandonado após o Grande Naufrágio', 'guardado por pactos quebrados',
+                'amaldiçoado pelas Luas Gêmeas', 'erguido em glória há milênios',
+                'corroído pelo sal e pelo tempo', 'esculpido em pedra-lua',
+                'protegido por selos de sangue', 'suspenso entre marés',
+                'tomado por vegetação faminta', 'permeado por murmúrios distantes'
+            ],
+            caracteristicas: [
+                'onde cristais crescem das paredes e cantam quando tocados',
+                'coberto por névoa espessa que engole sons e memórias',
+                'ressoando com ecos de batalhas travadas há séculos',
+                'protegido por círculos de proteção que brilham sob o luar',
+                'cercado por águas tão claras que refletem outros mundos',
+                'construído com pedra-vulcânica que pulsa como coração vivo',
+                'cujas paredes narram histórias em idiomas esquecidos',
+                'onde uma fenda no ar revela estrelas que não existem',
+                'vigiado por espíritos presos em âmbar temporal',
+                'onde relógios andam para trás e feridas cicatrizam antes de abrir',
+                'sufocado por vinhas carmesins que sussurram segredos',
+                'decorado com símbolos que ardem nos olhos de quem os contempla',
+                'onde o ar é denso e salgado como lágrimas de gigantes',
+                'repleto de estátuas que seguem visitantes com olhares vazios'
+            ],
+            segredos: [
+                'guarda o último mapa para Atlântida das Correntes',
+                'serve como gaiola para uma entidade que antecede o tempo',
+                'contém portais para os Sete Mares Proibidos',
+                'foi erguido sobre o cadáver de um deus-baleia',
+                'preserva tomos escritos em sangue de videntes',
+                'é o ponto de encontro da Ordem da Maré Negra',
+                'esconde túneis que conectam todos os oceanos',
+                'foi construído sobre o túmulo da Primeira Tempestade',
+                'abriga o coração cristalizado de um Leviatã adormecido',
+                'é assombrado pelo capitão que sacrificou sua tripulação',
+                'contém o verdadeiro nome do Oceano Primordial',
+                'é onde as marés decidem quem vive e quem morre'
+            ]
+        },
+        npc: {
+            profissoes: [
+                'Capitão de Navios Fantasma', 'Domador de Marés', 'Mercador de Sonhos Afogados',
+                'Forjador de Âncoras Vivas', 'Destilador de Tempestades', 'Leitor de Estrelas Submersas',
+                'Guardião dos Faróis Mortos', 'Vigilante do Cais', 'Tecelão de Correntes',
+                'Cantador de Baladas Perdidas', 'Cirurgião das Águas Profundas', 'Invocador de Névoas',
+                'Caçador de Lulas Colossais', 'Atravessador de Fronteiras', 'Arauto das Correntezas',
+                'Arquivista de Naufrágios', 'Ceifador Silencioso', 'Negociador de Maremotos',
+                'Escultor de Ossos de Coral', 'Decifrador de Conchas Ancestrais'
+            ],
+            personalidades: [
+                'ousado como vendaval, mas queima pontes sem olhar para trás',
+                'observa cada sombra, confia apenas no metal frio de sua lâmina',
+                'encanta multidões com palavras doces que escondem ganchos afiados',
+                'fala pouco, mas cada palavra carrega o peso de segredos milenares',
+                'incapaz de mentir, mesmo quando a verdade custa vidas',
+                'sorri enquanto tece teias onde todos são peças do seu jogo',
+                'daria a vida pelos seus, sem hesitar nem cobrar gratidão',
+                'muda de ideia como o vento muda de direção, impossível de prever',
+                'carrega séculos de paciência, espera o momento exato para agir',
+                'explode em fúria como maremoto, arrependendo-se apenas quando passa'
+            ],
+            objetivos: [
+                'rastreia quem traiu sua tripulação para as profundezas',
+                'busca absolvição pelo naufrágio que causou e pelas almas que levou',
+                'persegue pistas sobre a ilha onde nasceu, apagada dos mapas',
+                'foge de uma Ordem que executa qualquer um que conheça seu nome',
+                'caça o Tridente de Maraleth, capaz de controlar oceanos inteiros',
+                'guarda o segredo de uma praga que pode drenar os mares',
+                'procura irmãos vendidos como escravos há décadas',
+                'quer provar que não é covarde diante de quem o chamou assim',
+                'investiga desaparecimentos de navios que formam um padrão sinistro',
+                'cumpre visões de uma entidade submarina que lhe fala em pesadelos'
+            ],
+            marcas: [
+                'carrega cicatriz em forma de âncora gravada a ferro em brasa',
+                'usa medalhão que pulsa com luz azul quando perigo se aproxima',
+                'fala como se tivesse vivido em dez portos diferentes',
+                'tem um olho verde como alga e outro negro como abismo',
+                'exibe tatuagem que se move sozinha, mostrando mapas mutantes',
+                'nasceu com marca de tridente nas costas, sinal de maldição',
+                'jamais tira seu casaco de couro de criatura marinha',
+                'é seguido por uma gaivota albina que entende ordens',
+                'usa gancho de prata no lugar da mão perdida em ritual',
+                'esconde as mãos sob luvas, pois são cobertas de escamas'
+            ]
+        },
+        pista: {
+            tipos: [
+                'Carta Selada com Cera Negra', 'Mapa Tatuado em Pele Humana', 
+                'Diário Encadernado em Couro de Sereia', 'Pergaminho que Sangra ao Toque',
+                'Grimório de Páginas Vivas', 'Medalhão com Retrato que Envelhece',
+                'Chave Forjada em Osso de Baleia', 'Moeda de Metal que Não Existe',
+                'Amuleto que Sussurra em Línguas Mortas', 'Fragmento de Espelho Amaldiçoado',
+                'Tatuagem Arrancada e Preservada', 'Símbolo Gravado em Dente de Tubarão',
+                'Código Escrito em Conchas Perfuradas', 'Runas Esculpidas em Âmbar',
+                'Selo Real Coberto de Ferrugem Carmesim', 'Garrafa com Mensagem Fantasma'
+            ],
+            condicoes: [
+                'carbonizado nas bordas, como se escapasse de incêndio submarino',
+                'cifrado em linguagem que só é legível sob luz de lua cheia',
+                'manchado com sangue que ainda brilha fracamente',
+                'dilacerado por garras, faltando pedaços cruciais',
+                'escrito com tinta que só aparece quando molhado em água salgada',
+                'envolto em selo de proteção que queima mãos impuras',
+                'redigido em idioma que não consta em nenhum arquivo',
+                'datado de época anterior ao surgimento dos oceanos',
+                'marcado com brasão de família extinta há gerações',
+                'encharcado, com palavras dissolvendo-se lentamente'
+            ],
+            conteudos: [
+                'indica coordenadas de tesouro guardado por criatura lendária',
+                'profetiza o despertar de algo que deveria permanecer adormecido',
+                'denuncia traição nas mais altas esferas do Conselho dos Faróis',
+                'detalha invocação capaz de rasgar o véu entre mundos',
+                'nomeia o traidor que entregou a frota às Águas Negras',
+                'conecta naufrágios recentes a um padrão de sacrifício ritual',
+                'preserva confissão de alguém que morreu jurando silêncio',
+                'documenta avistamento de Leviatã nas Fossas Proibidas',
+                'revela linhagem secreta ligando mercadores a realeza',
+                'aponta entrada oculta para o Arquivo Submerso'
+            ],
+            consequencias: [
+                'mas sombras observam quem o carrega',
+                'porém cada palavra lida é armadilha que se fecha lentamente',
+                'mas usá-lo destruirá alianças que mantêm a paz',
+                'e três facções matariam para possuí-lo',
+                'mas revelar seu conteúdo marca o portador para morte',
+                'e perderá validade quando a maré virar na próxima lua',
+                'mas só funciona combinado com outro artefato perdido',
+                'porém faltam páginas essenciais, espalhadas propositalmente',
+                'mas decifrar exige sacrifício de memórias preciosas',
+                'e pode reescrever história de forma irreversível'
+            ]
+        },
+        monstro: {
+            tipos: [
+                'Dracoserpe das Profundezas', 'Enguia do Abismo', 'Aparição de Névoa Salgada',
+                'Colosso de Coral Vivo', 'Pesadelo Afogado', 'Maré Consciente',
+                'Horror de Mil Olhos Submersos', 'Afogado Eterno', 'Fera das Correntes',
+                'Autômato de Âncoras Retorcidas', 'Sílfide Corrompida das Ondas',
+                'Titã de Ossos de Navio', 'Amálgama de Náufragos', 'Hidra de Algas Venenosas',
+                'Guardião da Fossa Oceânica', 'Sombra que Arrasta para o Fundo'
+            ],
+            caracteristicas: [
+                'coberto por escamas que refletem memórias de quem as observa',
+                'tecido com sombras que devoram luz e esperança',
+                'repleto de olhos que choram água salgada constantemente',
+                'irradia ondas de energia que fazem o ar vibrar e distorcer',
+                'formado por cristais que cantam lamentos de afogados',
+                'exala névoa esverdeada que corrói metal e carne',
+                'possui tentáculos que brotam novamente quando cortados',
+                'arde por dentro com chamas azuis que não se apagam na água',
+                'tem corpo translúcido onde órgãos pulsam visivelmente',
+                'é fusão grotesca de criaturas diferentes fundidas em carne única',
+                'tem garras de ferro enferrujado arrancado de navios naufragados',
+                'crepita envolto em relâmpagos que saltam pela água'
+            ],
+            habilidades: [
+                'assume aparência humana perfeita, mas reflexos revelam sua verdadeira forma',
+                'sussurra em mentes fracas até que obedeçam ou enlouqueçam',
+                'desliza através de matéria sólida como se fosse água',
+                'suga vigor vital através de toque gélido que deixa marcas',
+                'conjura enxame de criaturas menores que emergem de seu corpo',
+                'projeta miragens tão reais que podem matar de medo',
+                'distorce fluxo temporal ao redor, envelhecendo ou rejuvenescendo',
+                'devora magias lançadas contra ele e cresce mais forte',
+                'regenera ferimentos em segundos, exigindo dano maciço',
+                'fragmenta-se em cópias menores quando ferido gravemente',
+                'petrifica vítimas que encontram seu olhar por muito tempo',
+                'dissolve-se em sombras e ressurge em outro ponto escuro'
+            ],
+            fraquezas: [
+                'desintegra-se sob luz direta do sol nascente',
+                'é repelido por água consagrada aos deuses dos mares',
+                'não consegue cruzar linhas de sal marinho abençoado',
+                'entra em pânico diante de fogo alquímico verde',
+                'depende de âncora física que, se destruída, o bane',
+                'perde força quando afastado das águas onde nasceu',
+                'é cego mas detecta vibrações - silêncio total o confunde',
+                'deve consumir almas humanas a cada lua ou definha',
+                'recua diante de ferro fundido em fornalha submarina',
+                'enfraquece drasticamente sob eclipse lunar'
+            ],
+            origens: [
+                'nascido de ritual proibido que sacrificou tripulação inteira',
+                'guardião leal corrompido por entidade do abismo',
+                'resultado de maldição lançada por bruxo moribundo',
+                'invasor de dimensão paralela preso entre mundos',
+                'criatura comum exposta a cristais de energia primordial',
+                'manifestação da ira de divindade esquecida',
+                'fusão forçada de almas de condenados ao mar',
+                'arma biológica de guerra antiga, perdida e feral',
+                'pesadelo coletivo que ganhou forma tangível',
+                'último sobrevivente de espécie extinta há milênios'
+            ]
+        }
+    },
+    
+    // Gerar uma ideia aleatória
+    generateIdea(category) {
+        const template = this.templates[category];
+        let idea = {};
+        
+        switch(category) {
+            case 'local':
+                const nome = this.random(template.nomes);
+                const adj = this.random(template.adjetivos);
+                idea = {
+                    titulo: nome,
+                    descricao: `${adj.charAt(0).toUpperCase() + adj.slice(1)}, ${this.random(template.caracteristicas)}`,
+                    segredo: `${this.random(template.segredos)}`
+                };
+                break;
+                
+            case 'npc':
+                idea = {
+                    titulo: this.random(template.profissoes),
+                    personalidade: this.random(template.personalidades),
+                    objetivo: this.random(template.objetivos),
+                    marca: this.random(template.marcas)
+                };
+                break;
+                
+            case 'pista':
+                idea = {
+                    titulo: this.random(template.tipos),
+                    condicao: this.random(template.condicoes),
+                    conteudo: this.random(template.conteudos),
+                    twist: this.random(template.consequencias)
+                };
+                break;
+                
+            case 'monstro':
+                idea = {
+                    titulo: this.random(template.tipos),
+                    aparencia: this.random(template.caracteristicas),
+                    poder: this.random(template.habilidades),
+                    fraqueza: this.random(template.fraquezas),
+                    origem: this.random(template.origens)
+                };
+                break;
+        }
+        
+        return idea;
+    },
+    
+    // Gerar múltiplas ideias
+    generateMultiple(category, count = 6) {
+        const ideas = [];
+        for (let i = 0; i < count; i++) {
+            ideas.push(this.generateIdea(category));
+        }
+        return ideas;
+    },
+    
+    // Selecionar item aleatório de array
+    random(array) {
+        return array[Math.floor(Math.random() * array.length)];
+    },
+    
+    // Renderizar ideias na interface
+    renderIdeas(category) {
+        this.currentCategory = category;
+        const ideas = this.generateMultiple(category, 6);
+        const container = document.getElementById('ideasGrid');
+        const resultsSection = document.getElementById('brainstormResults');
+        
+        resultsSection.classList.remove('hidden');
+        container.innerHTML = ideas.map(idea => this.createIdeaCard(idea, category)).join('');
+        
+        // Scroll suave até os resultados
+        resultsSection.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    },
+    
+    // Criar card de ideia
+    createIdeaCard(idea, category) {
+        let content = '';
+        
+        switch(category) {
+            case 'local':
+                content = `
+                    <h4>${idea.titulo}</h4>
+                    <p class="idea-line"><strong>Característica:</strong> ${idea.descricao}</p>
+                    <p class="idea-line"><strong>Segredo:</strong> ${idea.segredo}</p>
+                `;
+                break;
+            case 'npc':
+                content = `
+                    <h4>${idea.titulo}</h4>
+                    <p class="idea-line"><strong>Personalidade:</strong> ${idea.personalidade}</p>
+                    <p class="idea-line"><strong>Objetivo:</strong> ${idea.objetivo}</p>
+                    <p class="idea-line"><strong>Marca:</strong> ${idea.marca}</p>
+                `;
+                break;
+            case 'pista':
+                content = `
+                    <h4>${idea.titulo}</h4>
+                    <p class="idea-line"><strong>Estado:</strong> ${idea.condicao}</p>
+                    <p class="idea-line"><strong>Revelação:</strong> ${idea.conteudo}</p>
+                    <p class="idea-line"><strong>Porém:</strong> ${idea.twist}</p>
+                `;
+                break;
+            case 'monstro':
+                content = `
+                    <h4>${idea.titulo}</h4>
+                    <p class="idea-line">${idea.aparencia}</p>
+                    <p class="idea-line"><strong>Poder:</strong> ${idea.poder}</p>
+                    <p class="idea-line"><strong>Fraqueza:</strong> ${idea.fraqueza}</p>
+                    <p class="idea-line"><strong>Origem:</strong> ${idea.origem}</p>
+                `;
+                break;
+        }
+        
+        return `
+            <div class="idea-card">
+                ${content}
+            </div>
+        `;
+    },
+    
+    // Inicializar eventos
+    init() {
+        // Botões de categoria
+        document.querySelectorAll('.category-card').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                const category = e.currentTarget.dataset.category;
+                this.renderIdeas(category);
+            });
+        });
+        
+        // Botão de gerar mais
+        const generateBtn = document.getElementById('generateMoreIdeas');
+        if (generateBtn) {
+            generateBtn.addEventListener('click', () => {
+                if (this.currentCategory) {
+                    this.renderIdeas(this.currentCategory);
+                }
+            });
+        }
+    }
+};
+
+// Inicializar brainstorm quando DOM carregar
+document.addEventListener('DOMContentLoaded', () => {
+    BrainstormGenerator.init();
+});

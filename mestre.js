@@ -442,6 +442,121 @@ const ImageManager = {
 };
 
 // ============================================
+// RENDERIZADOR DE TEXTO COM DESTAQUE
+// ============================================
+//
+// MODELO MENTAL DE RENDERIZAÇÃO SEGURA
+// =====================================
+//
+// 1. textContent vs innerHTML
+//    - textContent: SEGURO, trata tudo como texto puro
+//    - innerHTML: PERIGOSO, interpreta HTML e pode executar scripts
+//
+// 2. Risco de XSS (Cross-Site Scripting)
+//    - Se o usuário digitar <script>alert('hack')</script>
+//    - Com innerHTML direto, isso EXECUTARIA
+//    - Precisamos ESCAPAR o HTML antes de processar
+//
+// 3. Fluxo Seguro
+//    a) Receber texto puro do usuário
+//    b) ESCAPAR caracteres HTML perigosos (< > & " ')
+//    c) DEPOIS aplicar nossas transformações controladas
+//    d) Resultado: HTML seguro com apenas as tags que permitimos
+//
+// SINTAXE SUPORTADA
+// =================
+// - \n → quebra de linha (<br>)
+// - *texto* → destaque (<span class="text-highlight">texto</span>)
+// - Sem aninhamento, sem outros símbolos
+//
+
+const TextRenderer = {
+    
+    // ==========================================
+    // Escapar caracteres HTML perigosos
+    // SEMPRE fazer isso ANTES de qualquer transformação
+    // ==========================================
+    escapeHTML(text) {
+        if (!text) return '';
+        
+        const escapeMap = {
+            '&': '&amp;',   // & deve ser primeiro!
+            '<': '&lt;',
+            '>': '&gt;',
+            '"': '&quot;',
+            "'": '&#039;'
+        };
+        
+        return text.replace(/[&<>"']/g, char => escapeMap[char]);
+    },
+    
+    // ==========================================
+    // Renderizar texto com destaque
+    // Converte sintaxe mínima para HTML seguro
+    // ==========================================
+    render(text) {
+        if (!text) return '';
+        
+        // 1. ESCAPAR HTML primeiro (segurança)
+        let safe = this.escapeHTML(text);
+        
+        // 2. Converter *texto* para destaque
+        // Regex: *texto* onde texto não contém * nem quebra de linha
+        // Não permite aninhamento
+        safe = safe.replace(
+            /\*([^*\n]+)\*/g, 
+            '<span class="text-highlight">$1</span>'
+        );
+        
+        // 3. Converter quebras de linha para <br>
+        safe = safe.replace(/\n/g, '<br>');
+        
+        return safe;
+    },
+    
+    // ==========================================
+    // Renderizar para exibição em card (versão curta)
+    // Limita o tamanho e remove quebras extras
+    // ==========================================
+    renderShort(text, maxLength = 150) {
+        if (!text) return '';
+        
+        // Truncar se muito longo
+        let truncated = text;
+        if (text.length > maxLength) {
+            truncated = text.substring(0, maxLength).trim() + '...';
+        }
+        
+        return this.render(truncated);
+    },
+    
+    // ==========================================
+    // Renderizar para exibição detalhada (versão completa)
+    // Preserva todas as quebras de linha
+    // ==========================================
+    renderFull(text) {
+        return this.render(text);
+    },
+    
+    // ==========================================
+    // Verificar se texto contém destaques
+    // Útil para UI (mostrar dica sobre sintaxe)
+    // ==========================================
+    hasHighlights(text) {
+        if (!text) return false;
+        return /\*[^*\n]+\*/.test(text);
+    },
+    
+    // ==========================================
+    // Remover sintaxe de destaque (para busca)
+    // ==========================================
+    stripHighlights(text) {
+        if (!text) return '';
+        return text.replace(/\*([^*\n]+)\*/g, '$1');
+    }
+};
+
+// ============================================
 // GERENCIADOR DE DADOS E PERSISTÊNCIA
 // ============================================
 
@@ -690,7 +805,7 @@ const CardRenderer = {
                 </div>
                 <div class="card-body">
                     <h3 class="card-title">${local.nome || 'Local Sem Nome'}</h3>
-                    <p class="card-description">${local.descricao || 'Sem descrição'}</p>
+                    <p class="card-description">${TextRenderer.renderShort(local.descricao) || 'Sem descrição'}</p>
                     <div class="card-meta">
                         ${subLocaisCount > 0 ? HierarchyManager.renderSublocaisIndicator(local, subLocaisCount) : ''}
                         <span class="card-badge">👥 ${npcsCount} NPCs</span>
@@ -719,7 +834,7 @@ const CardRenderer = {
                 </div>
                 <div class="card-body">
                     <h3 class="card-title">${npc.nome || 'NPC Sem Nome'}</h3>
-                    <p class="card-description">${npc.descricao || 'Sem descrição'}</p>
+                    <p class="card-description">${TextRenderer.renderShort(npc.descricao) || 'Sem descrição'}</p>
                     <div class="card-meta">
                         ${npc.idade ? `<span class="card-badge">📅 ${npc.idade} anos</span>` : ''}
                         <span class="card-badge">🔗 ${vinculosCount} vínculos</span>
@@ -747,7 +862,7 @@ const CardRenderer = {
                 </div>
                 <div class="card-body">
                     <h3 class="card-title">${pista.nome || 'Pista Sem Nome'}</h3>
-                    <p class="card-description">${pista.descricao || 'Sem descrição'}</p>
+                    <p class="card-description">${TextRenderer.renderShort(pista.descricao) || 'Sem descrição'}</p>
                     <div class="card-meta">
                         <span class="card-badge">👥 ${npcsCount} NPCs</span>
                         <span class="card-badge">📍 ${locaisCount} Locais</span>
@@ -773,7 +888,7 @@ const CardRenderer = {
                 </div>
                 <div class="card-body">
                     <h3 class="card-title">${monstro.nome || 'Monstro Sem Nome'}</h3>
-                    <p class="card-description">${monstro.descricao || 'Sem descrição'}</p>
+                    <p class="card-description">${TextRenderer.renderShort(monstro.descricao) || 'Sem descrição'}</p>
                     <div class="card-meta">
                         <span class="card-badge">📍 ${locaisCount} Locais</span>
                     </div>
@@ -1401,7 +1516,7 @@ const DetailRenderer = {
                 
                 <div class="detail-section">
                     <h3 class="detail-section-title">📝 Descrição</h3>
-                    <p class="detail-text">${local.descricao || 'Sem descrição'}</p>
+                    <p class="detail-text">${TextRenderer.renderFull(local.descricao) || 'Sem descrição'}</p>
                 </div>
                 
                 ${subLocais.length > 0 ? `
@@ -1486,7 +1601,7 @@ const DetailRenderer = {
                 
                 <div class="detail-section">
                     <h3 class="detail-section-title">📝 Descrição</h3>
-                    <p class="detail-text">${npc.descricao || 'Sem descrição'}</p>
+                    <p class="detail-text">${TextRenderer.renderFull(npc.descricao) || 'Sem descrição'}</p>
                 </div>
                 
                 ${vinculos.length > 0 ? `
@@ -1549,7 +1664,7 @@ const DetailRenderer = {
                 
                 <div class="detail-section">
                     <h3 class="detail-section-title">📝 Descrição</h3>
-                    <p class="detail-text">${pista.descricao || 'Sem descrição'}</p>
+                    <p class="detail-text">${TextRenderer.renderFull(pista.descricao) || 'Sem descrição'}</p>
                 </div>
                 
                 ${locais.length > 0 ? `
@@ -1599,7 +1714,7 @@ const DetailRenderer = {
                 
                 <div class="detail-section">
                     <h3 class="detail-section-title">📝 Descrição</h3>
-                    <p class="detail-text">${monstro.descricao || 'Sem descrição'}</p>
+                    <p class="detail-text">${TextRenderer.renderFull(monstro.descricao) || 'Sem descrição'}</p>
                 </div>
                 
                 ${locais.length > 0 ? `

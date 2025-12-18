@@ -719,6 +719,52 @@ body {
     opacity: 1 !important;
 }
 
+/* ============================================
+   RENDERIZAÇÃO DE TEXTO COM DESTAQUE
+   ============================================ */
+
+/*
+ * Sistema de destaque para descrições
+ * Usa a sintaxe *texto* para marcar trechos importantes
+ * O destaque é visualmente consistente com títulos do site
+ */
+
+/* Destaque inline em textos */
+.text-highlight {
+    color: var(--color-primary);
+    font-weight: 600;
+    /* Leve background para reforçar visualmente */
+    background: rgba(var(--color-primary-rgb), 0.1);
+    padding: 0.1em 0.3em;
+    border-radius: 3px;
+    /* Não quebrar a palavra destacada */
+    white-space: nowrap;
+}
+
+/* Em contextos de card (descrição curta) */
+.card-description .text-highlight {
+    /* Mantém mais sutil em cards para não poluir */
+    background: transparent;
+    padding: 0;
+}
+
+/* Em contextos de detalhe (descrição completa) */
+.detail-text .text-highlight {
+    /* Mais destaque em visualização detalhada */
+    background: rgba(var(--color-primary-rgb), 0.15);
+}
+
+/* Garantir que o texto com destaque mantenha boa leitura */
+.card-description,
+.detail-text {
+    line-height: 1.7;
+}
+
+/* Ajuste para quebras de linha em descrições detalhadas */
+.detail-text {
+    white-space: pre-line;
+}
+
 .card-actions {
     display: flex;
     gap: var(--spacing-xs);

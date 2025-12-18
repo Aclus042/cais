@@ -1,19 +1,74 @@
 // ============================================
-// GERENCIADOR DE IMAGENS
+// GERENCIADOR DE IMAGENS - SISTEMA DE CROP
 // ============================================
+// 
+// MODELO MENTAL CORRETO PARA CROP DE IMAGENS
+// ==========================================
+// 
+// 1. DIFERENÇA ENTRE object-fit: cover E CROP REAL
+//    - object-fit: cover é APENAS VISUAL. A imagem inteira ainda existe,
+//      o CSS apenas esconde partes dela na renderização.
+//    - Crop via Canvas é DEFINITIVO. Gera uma nova imagem contendo
+//      apenas a área selecionada.
+// 
+// 2. POR QUE CROP NO UPLOAD?
+//    - Reduz tamanho do arquivo (menos dados no localStorage)
+//    - Garante consistência: a mesma imagem em qualquer card
+//    - Previsibilidade: o usuário sabe exatamente o que salvou
+//    - Performance: imagens menores = renderização mais rápida
+// 
+// 3. ASPECT RATIO FIXO (3:2)
+//    - Cards de RPG são tipicamente horizontais ou quadrados
+//    - 3:2 é versátil: funciona bem em cards grandes, médios e pequenos
+//    - Uma proporção única evita distorções entre contextos
+//    - Alternativa: 4:3 para imagens mais "quadradas", 16:9 para banners
+// 
+// 4. FLUXO DE CROP
+//    a) Usuário seleciona arquivo
+//    b) Imagem carrega em área de preview com MÁSCARA FIXA
+//    c) Usuário arrasta a imagem (não a máscara)
+//    d) Usuário ajusta zoom se necessário
+//    e) Ao confirmar: canvas extrai apenas a área visível
+//    f) Imagem recortada é salva em base64
+//
 
 const ImageManager = {
-    currentImage: null,
-    currentCallback: null,
-    zoom: 1,
-    imgElement: null,
-    posX: 50,
-    posY: 50,
-    isDragging: false,
-    startX: 0,
-    startY: 0,
+    // Configuração de proporção do crop
+    // 3:2 é ideal para cards de RPG (versátil para vários tamanhos)
+    CROP_ASPECT_RATIO: 3 / 2,  // largura / altura
+    CROP_WIDTH: 450,           // largura da área de crop em pixels
+    CROP_HEIGHT: 300,          // altura da área de crop (450 / 1.5)
+    OUTPUT_WIDTH: 600,         // largura da imagem final
+    OUTPUT_HEIGHT: 400,        // altura da imagem final (600 / 1.5)
+    OUTPUT_QUALITY: 0.85,      // qualidade JPEG (0.85 = bom equilíbrio)
     
-    // Abrir seletor de arquivo e mostrar modal de ajuste
+    // Estado interno
+    state: {
+        originalImage: null,    // Image object original
+        imageWidth: 0,          // largura natural da imagem
+        imageHeight: 0,         // altura natural da imagem
+        scale: 1,               // escala atual (zoom)
+        minScale: 1,            // escala mínima (imagem cobre a área)
+        offsetX: 0,             // deslocamento X da imagem
+        offsetY: 0,             // deslocamento Y da imagem
+        isDragging: false,      // se está arrastando
+        dragStartX: 0,          // posição inicial do drag
+        dragStartY: 0,          // posição inicial do drag
+        callback: null,         // função chamada ao confirmar
+    },
+    
+    // Elementos DOM (cacheados para performance)
+    elements: {
+        modal: null,
+        canvas: null,
+        ctx: null,
+        zoomSlider: null,
+        zoomValue: null,
+    },
+    
+    // ==========================================
+    // MÉTODO PRINCIPAL: Abrir seletor de imagem
+    // ==========================================
     selectImage(callback) {
         const input = document.createElement('input');
         input.type = 'file';
@@ -21,162 +76,368 @@ const ImageManager = {
         
         input.onchange = (e) => {
             const file = e.target.files[0];
-            if (file && file.type.startsWith('image/')) {
-                const reader = new FileReader();
-                reader.onload = (e) => {
-                    this.currentImage = e.target.result;
-                    this.currentCallback = callback;
-                    this.zoom = 1;
-                    this.posX = 50;
-                    this.posY = 50;
-                    this.openModal();
-                };
-                reader.readAsDataURL(file);
-            }
+            if (!file || !file.type.startsWith('image/')) return;
+            
+            // Ler arquivo como Data URL
+            const reader = new FileReader();
+            reader.onload = (event) => {
+                this.loadImage(event.target.result, callback);
+            };
+            reader.readAsDataURL(file);
         };
         
         input.click();
     },
     
-    // Abrir modal de ajuste
+    // ==========================================
+    // Carregar imagem e abrir modal
+    // ==========================================
+    loadImage(dataUrl, callback) {
+        const img = new Image();
+        
+        img.onload = () => {
+            // Salvar estado
+            this.state.originalImage = img;
+            this.state.imageWidth = img.naturalWidth;
+            this.state.imageHeight = img.naturalHeight;
+            this.state.callback = callback;
+            
+            // Calcular escala mínima (imagem deve cobrir área de crop)
+            this.calculateMinScale();
+            
+            // Iniciar com escala mínima e centralizado
+            this.state.scale = this.state.minScale;
+            this.centerImage();
+            
+            // Abrir modal
+            this.openModal();
+        };
+        
+        img.onerror = () => {
+            alert('Erro ao carregar imagem. Tente outro arquivo.');
+        };
+        
+        img.src = dataUrl;
+    },
+    
+    // ==========================================
+    // Calcular escala mínima
+    // A imagem deve SEMPRE cobrir completamente a área de crop
+    // ==========================================
+    calculateMinScale() {
+        const { imageWidth, imageHeight } = this.state;
+        
+        // Escala necessária para cobrir a largura
+        const scaleX = this.CROP_WIDTH / imageWidth;
+        // Escala necessária para cobrir a altura
+        const scaleY = this.CROP_HEIGHT / imageHeight;
+        
+        // Usar a MAIOR escala (garante cobertura total)
+        this.state.minScale = Math.max(scaleX, scaleY);
+    },
+    
+    // ==========================================
+    // Centralizar imagem na área de crop
+    // ==========================================
+    centerImage() {
+        const { imageWidth, imageHeight, scale } = this.state;
+        
+        const scaledWidth = imageWidth * scale;
+        const scaledHeight = imageHeight * scale;
+        
+        // Centralizar: offset = (tamanho da área - tamanho da imagem) / 2
+        this.state.offsetX = (this.CROP_WIDTH - scaledWidth) / 2;
+        this.state.offsetY = (this.CROP_HEIGHT - scaledHeight) / 2;
+    },
+    
+    // ==========================================
+    // Limitar offset para imagem não sair da área
+    // ==========================================
+    clampOffset() {
+        const { imageWidth, imageHeight, scale } = this.state;
+        
+        const scaledWidth = imageWidth * scale;
+        const scaledHeight = imageHeight * scale;
+        
+        // Limite máximo: 0 (borda esquerda/topo alinhada com área)
+        // Limite mínimo: área - imagem (borda direita/baixo alinhada)
+        const maxOffsetX = 0;
+        const minOffsetX = this.CROP_WIDTH - scaledWidth;
+        const maxOffsetY = 0;
+        const minOffsetY = this.CROP_HEIGHT - scaledHeight;
+        
+        this.state.offsetX = Math.min(maxOffsetX, Math.max(minOffsetX, this.state.offsetX));
+        this.state.offsetY = Math.min(maxOffsetY, Math.max(minOffsetY, this.state.offsetY));
+    },
+    
+    // ==========================================
+    // Abrir modal de crop
+    // ==========================================
     openModal() {
-        const modal = document.getElementById('imageModal');
-        const container = document.getElementById('imagePreview');
-        const slider = document.getElementById('sizeSlider');
-        const zoomValue = document.getElementById('sizeValue');
+        // Cachear elementos
+        this.elements.modal = document.getElementById('imageModal');
+        this.elements.canvas = document.getElementById('cropCanvas');
+        this.elements.ctx = this.elements.canvas.getContext('2d');
+        this.elements.zoomSlider = document.getElementById('cropZoomSlider');
+        this.elements.zoomValue = document.getElementById('cropZoomValue');
         
-        // Criar elemento de imagem
-        container.innerHTML = '';
-        this.imgElement = document.createElement('img');
-        this.imgElement.src = this.currentImage;
-        this.imgElement.style.width = '100%';
-        this.imgElement.style.height = '100%';
-        this.imgElement.style.objectFit = 'cover';
-        this.imgElement.style.objectPosition = '50% 50%';
-        this.imgElement.style.cursor = 'move';
-        this.imgElement.draggable = false;
-        container.appendChild(this.imgElement);
+        // Configurar canvas
+        this.elements.canvas.width = this.CROP_WIDTH;
+        this.elements.canvas.height = this.CROP_HEIGHT;
         
-        // Adicionar eventos de drag
-        this.setupDragEvents(container);
+        // Configurar slider de zoom
+        // Range: 100% (escala mínima) até 300% da escala mínima
+        this.elements.zoomSlider.min = 100;
+        this.elements.zoomSlider.max = 300;
+        this.elements.zoomSlider.value = 100;
+        this.updateZoomDisplay();
         
-        slider.value = 100;
-        zoomValue.textContent = '100%';
+        // Configurar eventos
+        this.setupEvents();
         
-        modal.classList.add('active');
+        // Renderizar preview
+        this.render();
+        
+        // Mostrar modal
+        this.elements.modal.classList.add('active');
         document.body.style.overflow = 'hidden';
     },
     
-    // Configurar eventos de arrastar
-    setupDragEvents(container) {
-        container.addEventListener('mousedown', (e) => {
-            this.isDragging = true;
-            this.startX = e.clientX;
-            this.startY = e.clientY;
-            container.style.cursor = 'grabbing';
-        });
+    // ==========================================
+    // Configurar eventos de interação
+    // ==========================================
+    setupEvents() {
+        const canvas = this.elements.canvas;
         
-        document.addEventListener('mousemove', (e) => {
-            if (!this.isDragging) return;
-            
-            const deltaX = (e.clientX - this.startX) * 0.5;
-            const deltaY = (e.clientY - this.startY) * 0.5;
-            
-            this.posX = Math.max(0, Math.min(100, this.posX - deltaX));
-            this.posY = Math.max(0, Math.min(100, this.posY - deltaY));
-            
-            this.startX = e.clientX;
-            this.startY = e.clientY;
-            
-            this.updatePosition();
-        });
+        // Remover eventos anteriores (evita duplicação)
+        canvas.onmousedown = null;
+        canvas.ontouchstart = null;
+        document.onmousemove = null;
+        document.ontouchmove = null;
+        document.onmouseup = null;
+        document.ontouchend = null;
         
-        document.addEventListener('mouseup', () => {
-            this.isDragging = false;
-            container.style.cursor = 'move';
-        });
-    },
-    
-    // Atualizar posição da imagem
-    updatePosition() {
-        if (this.imgElement) {
-            this.imgElement.style.objectPosition = `${this.posX}% ${this.posY}%`;
-        }
-    },
-    
-    // Atualizar zoom
-    updateZoom() {
-        const slider = document.getElementById('sizeSlider');
-        const zoomValue = document.getElementById('sizeValue');
-        const zoomPercent = parseInt(slider.value);
+        // Mouse events
+        canvas.onmousedown = (e) => this.startDrag(e.clientX, e.clientY);
+        document.onmousemove = (e) => this.drag(e.clientX, e.clientY);
+        document.onmouseup = () => this.endDrag();
         
-        this.zoom = zoomPercent / 100;
-        zoomValue.textContent = `${zoomPercent}%`;
-        
-        if (this.imgElement) {
-            const scale = 0.5 + (this.zoom * 1.5); // 50% a 200%
-            this.imgElement.style.transform = `scale(${scale})`;
-            this.imgElement.style.transition = 'transform 0.2s ease';
-            this.imgElement.style.objectPosition = `${this.posX}% ${this.posY}%`;
-        }
-    },
-    
-    // Confirmar e processar imagem
-    confirmImage() {
-        if (!this.currentImage || !this.currentCallback) return;
-        
-        const img = new Image();
-        img.onload = () => {
-            const canvas = document.createElement('canvas');
-            const outputSize = 300;
-            canvas.width = outputSize;
-            canvas.height = outputSize;
-            
-            const ctx = canvas.getContext('2d');
-            ctx.imageSmoothingEnabled = true;
-            ctx.imageSmoothingQuality = 'high';
-            
-            // Aplicar zoom
-            const scale = 0.5 + (this.zoom * 1.5);
-            const scaledWidth = img.width * scale;
-            const scaledHeight = img.height * scale;
-            
-            // Calcular crop com posição customizada
-            const cropSize = Math.min(scaledWidth, scaledHeight);
-            const maxOffsetX = (scaledWidth - cropSize) / scale;
-            const maxOffsetY = (scaledHeight - cropSize) / scale;
-            
-            const offsetX = (this.posX / 100) * maxOffsetX;
-            const offsetY = (this.posY / 100) * maxOffsetY;
-            
-            ctx.drawImage(
-                img,
-                offsetX, offsetY,
-                cropSize / scale, cropSize / scale,
-                0, 0,
-                outputSize, outputSize
-            );
-            
-            const resizedImage = canvas.toDataURL('image/jpeg', 0.92);
-            this.currentCallback(resizedImage);
-            this.closeModal();
+        // Touch events (mobile)
+        canvas.ontouchstart = (e) => {
+            e.preventDefault();
+            const touch = e.touches[0];
+            this.startDrag(touch.clientX, touch.clientY);
         };
-        img.src = this.currentImage;
+        document.ontouchmove = (e) => {
+            if (!this.state.isDragging) return;
+            const touch = e.touches[0];
+            this.drag(touch.clientX, touch.clientY);
+        };
+        document.ontouchend = () => this.endDrag();
+        
+        // Zoom slider
+        this.elements.zoomSlider.oninput = () => this.handleZoom();
     },
     
-    // Fechar modal
+    // ==========================================
+    // Iniciar arraste
+    // ==========================================
+    startDrag(clientX, clientY) {
+        this.state.isDragging = true;
+        this.state.dragStartX = clientX - this.state.offsetX;
+        this.state.dragStartY = clientY - this.state.offsetY;
+        this.elements.canvas.style.cursor = 'grabbing';
+    },
+    
+    // ==========================================
+    // Durante arraste
+    // ==========================================
+    drag(clientX, clientY) {
+        if (!this.state.isDragging) return;
+        
+        this.state.offsetX = clientX - this.state.dragStartX;
+        this.state.offsetY = clientY - this.state.dragStartY;
+        
+        this.clampOffset();
+        this.render();
+    },
+    
+    // ==========================================
+    // Finalizar arraste
+    // ==========================================
+    endDrag() {
+        this.state.isDragging = false;
+        if (this.elements.canvas) {
+            this.elements.canvas.style.cursor = 'grab';
+        }
+    },
+    
+    // ==========================================
+    // Processar zoom
+    // ==========================================
+    handleZoom() {
+        const zoomPercent = parseInt(this.elements.zoomSlider.value);
+        const newScale = this.state.minScale * (zoomPercent / 100);
+        
+        // Calcular centro atual da área visível
+        const centerX = this.CROP_WIDTH / 2;
+        const centerY = this.CROP_HEIGHT / 2;
+        
+        // Posição do centro na imagem (antes do zoom)
+        const imgCenterX = (centerX - this.state.offsetX) / this.state.scale;
+        const imgCenterY = (centerY - this.state.offsetY) / this.state.scale;
+        
+        // Aplicar nova escala
+        this.state.scale = newScale;
+        
+        // Recalcular offset para manter o mesmo ponto central
+        this.state.offsetX = centerX - (imgCenterX * newScale);
+        this.state.offsetY = centerY - (imgCenterY * newScale);
+        
+        this.clampOffset();
+        this.updateZoomDisplay();
+        this.render();
+    },
+    
+    // ==========================================
+    // Atualizar display do zoom
+    // ==========================================
+    updateZoomDisplay() {
+        const zoomPercent = this.elements.zoomSlider.value;
+        this.elements.zoomValue.textContent = `${zoomPercent}%`;
+    },
+    
+    // ==========================================
+    // Renderizar preview no canvas
+    // ==========================================
+    render() {
+        const { ctx, canvas } = this.elements;
+        const { originalImage, scale, offsetX, offsetY } = this.state;
+        
+        if (!ctx || !originalImage) return;
+        
+        // Limpar canvas
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        
+        // Fundo escuro (para imagens com transparência)
+        ctx.fillStyle = '#0a0a0b';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        
+        // Desenhar imagem escalada e posicionada
+        const scaledWidth = originalImage.naturalWidth * scale;
+        const scaledHeight = originalImage.naturalHeight * scale;
+        
+        ctx.drawImage(
+            originalImage,
+            offsetX,
+            offsetY,
+            scaledWidth,
+            scaledHeight
+        );
+        
+        // Desenhar borda indicativa
+        ctx.strokeStyle = 'rgba(99, 102, 241, 0.5)';
+        ctx.lineWidth = 2;
+        ctx.strokeRect(1, 1, canvas.width - 2, canvas.height - 2);
+    },
+    
+    // ==========================================
+    // Confirmar crop e gerar imagem final
+    // ==========================================
+    confirmCrop() {
+        const { originalImage, scale, offsetX, offsetY, callback } = this.state;
+        
+        if (!originalImage || !callback) return;
+        
+        // Criar canvas de saída com tamanho final
+        const outputCanvas = document.createElement('canvas');
+        outputCanvas.width = this.OUTPUT_WIDTH;
+        outputCanvas.height = this.OUTPUT_HEIGHT;
+        
+        const outputCtx = outputCanvas.getContext('2d');
+        outputCtx.imageSmoothingEnabled = true;
+        outputCtx.imageSmoothingQuality = 'high';
+        
+        // Calcular a proporção entre preview e output
+        const scaleRatioX = this.OUTPUT_WIDTH / this.CROP_WIDTH;
+        const scaleRatioY = this.OUTPUT_HEIGHT / this.CROP_HEIGHT;
+        
+        // Calcular posição e tamanho da imagem no canvas de saída
+        const finalOffsetX = offsetX * scaleRatioX;
+        const finalOffsetY = offsetY * scaleRatioY;
+        const finalWidth = originalImage.naturalWidth * scale * scaleRatioX;
+        const finalHeight = originalImage.naturalHeight * scale * scaleRatioY;
+        
+        // Desenhar imagem recortada
+        outputCtx.drawImage(
+            originalImage,
+            finalOffsetX,
+            finalOffsetY,
+            finalWidth,
+            finalHeight
+        );
+        
+        // Converter para base64
+        const croppedImage = outputCanvas.toDataURL('image/jpeg', this.OUTPUT_QUALITY);
+        
+        // Chamar callback com imagem recortada
+        callback(croppedImage);
+        
+        // Fechar modal
+        this.closeModal();
+    },
+    
+    // ==========================================
+    // Fechar modal e limpar estado
+    // ==========================================
     closeModal() {
-        const modal = document.getElementById('imageModal');
-        modal.classList.remove('active');
+        // Remover eventos globais
+        document.onmousemove = null;
+        document.onmouseup = null;
+        document.ontouchmove = null;
+        document.ontouchend = null;
+        
+        // Esconder modal
+        if (this.elements.modal) {
+            this.elements.modal.classList.remove('active');
+        }
         document.body.style.overflow = 'auto';
         
-        this.currentImage = null;
-        this.currentCallback = null;
-        this.zoom = 1;
-        this.imgElement = null;
-        this.posX = 50;
-        this.posY = 50;
-        this.isDragging = false;
+        // Limpar estado
+        this.state = {
+            originalImage: null,
+            imageWidth: 0,
+            imageHeight: 0,
+            scale: 1,
+            minScale: 1,
+            offsetX: 0,
+            offsetY: 0,
+            isDragging: false,
+            dragStartX: 0,
+            dragStartY: 0,
+            callback: null,
+        };
+        
+        // Limpar elementos
+        this.elements = {
+            modal: null,
+            canvas: null,
+            ctx: null,
+            zoomSlider: null,
+            zoomValue: null,
+        };
+    },
+    
+    // ==========================================
+    // Método legado para compatibilidade
+    // (redireciona para novo sistema)
+    // ==========================================
+    updateZoom() {
+        this.handleZoom();
+    },
+    
+    confirmImage() {
+        this.confirmCrop();
     }
 };
 
@@ -376,14 +637,54 @@ const UIManager = {
 // ============================================
 
 const CardRenderer = {
-    // Renderizar card de local
-    renderLocalCard(local) {
+    // Obter caminho completo do local (breadcrumb)
+    getLocalBreadcrumb(local, locais) {
+        const path = [];
+        let current = local;
+        while (current.parentId) {
+            const parent = locais.find(l => l.id === current.parentId);
+            if (parent) {
+                path.unshift(parent.nome);
+                current = parent;
+            } else break;
+        }
+        return path;
+    },
+
+    // Contar sub-locais diretos
+    countSubLocais(localId, locais) {
+        return locais.filter(l => l.parentId === localId).length;
+    },
+
+    // Renderizar card de local com sistema de níveis hierárquicos
+    renderLocalCard(local, options = {}) {
+        const locais = DataManager.load('locais');
         const npcsCount = local.npcs ? local.npcs.length : 0;
         const pistasCount = local.pistas ? local.pistas.length : 0;
         const monstrosCount = local.monstros ? local.monstros.length : 0;
+        const subLocaisCount = this.countSubLocais(local.id, locais);
+        const breadcrumb = this.getLocalBreadcrumb(local, locais);
+        
+        // Calcular nível hierárquico
+        const level = HierarchyManager.getLevel(local.id, locais);
+        const levelLabel = HierarchyManager.getLevelLabel(level);
+        
+        // Verificar visibilidade no modo foco
+        const isVisible = HierarchyManager.isVisible(local.id, locais);
+        const hiddenClass = isVisible ? '' : 'hierarchy-hidden';
+        
+        // Verificar se é o local em foco
+        const isFocused = HierarchyManager.currentFocusId === local.id;
+        const focusedClass = isFocused ? 'hierarchy-focused' : '';
 
         return `
-            <div class="card">
+            <div class="card level-${level} ${hiddenClass} ${focusedClass}" data-local-id="${local.id}" data-level="${level}">
+                <span class="card-level-badge level-${level}">${levelLabel}</span>
+                ${breadcrumb.length > 0 && !HierarchyManager.currentFocusId ? `
+                    <div class="card-breadcrumb">
+                        ${breadcrumb.join(' › ')}
+                    </div>
+                ` : ''}
                 <div class="card-image ${local.imagem ? '' : 'placeholder'}" onclick="app.viewDetail('local', '${local.id}')">
                     ${local.imagem ? `<img src="${local.imagem}" alt="${local.nome}" style="width:100%;height:100%;object-fit:cover;">` : '📍'}
                 </div>
@@ -391,6 +692,7 @@ const CardRenderer = {
                     <h3 class="card-title">${local.nome || 'Local Sem Nome'}</h3>
                     <p class="card-description">${local.descricao || 'Sem descrição'}</p>
                     <div class="card-meta">
+                        ${subLocaisCount > 0 ? HierarchyManager.renderSublocaisIndicator(local, subLocaisCount) : ''}
                         <span class="card-badge">👥 ${npcsCount} NPCs</span>
                         <span class="card-badge">🔍 ${pistasCount} Pistas</span>
                         <span class="card-badge">⚔️ ${monstrosCount} Monstros</span>
@@ -609,6 +911,10 @@ const FormManager = {
                     const numValue = value?.trim();
                     data[key] = numValue && numValue !== '' ? parseInt(numValue, 10) : null;
                 }
+                // Campo parentId (referência ao local pai)
+                else if (key === 'parentId') {
+                    data[key] = value && value.trim() !== '' ? value.trim() : null;
+                }
                 // Demais campos (texto)
                 else {
                     data[key] = value || '';
@@ -686,12 +992,56 @@ const FormRenderer = {
         const npcs = DataManager.load('npcs');
         const pistas = DataManager.load('pistas');
         const monstros = DataManager.load('monstros');
+        const locais = DataManager.load('locais');
+        
+        // Filtrar locais que podem ser pai (excluir o próprio local e seus descendentes)
+        const getDescendantIds = (parentId) => {
+            const descendants = [];
+            const findChildren = (id) => {
+                locais.filter(l => l.parentId === id).forEach(child => {
+                    descendants.push(child.id);
+                    findChildren(child.id);
+                });
+            };
+            findChildren(parentId);
+            return descendants;
+        };
+        
+        const excludeIds = local ? [local.id, ...getDescendantIds(local.id)] : [];
+        const availableParents = locais.filter(l => !excludeIds.includes(l.id));
+        
+        // Função para obter o caminho completo do local
+        const getLocalPath = (localItem) => {
+            const path = [localItem.nome];
+            let current = localItem;
+            while (current.parentId) {
+                const parent = locais.find(l => l.id === current.parentId);
+                if (parent) {
+                    path.unshift(parent.nome);
+                    current = parent;
+                } else break;
+            }
+            return path.join(' > ');
+        };
         
         return `
             <form id="formLocal" onsubmit="app.saveItem(event, 'local', '${local?.id || ''}')">
                 <div class="form-group">
                     <label class="form-label">Nome do Local *</label>
                     <input type="text" name="nome" class="form-input" value="${local?.nome || ''}" required placeholder="Ex: Taverna do Dragão Dourado">
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label">Local Pai (opcional)</label>
+                    <select name="parentId" class="form-input">
+                        <option value="">— Nenhum (local raiz) —</option>
+                        ${availableParents.map(l => `
+                            <option value="${l.id}" ${local?.parentId === l.id ? 'selected' : ''}>
+                                ${getLocalPath(l)}
+                            </option>
+                        `).join('')}
+                    </select>
+                    <small style="color: var(--text-secondary); font-size: 0.85rem;">Se este local fica dentro de outro maior, selecione o local pai</small>
                 </div>
                 
                 ${this.renderImageUpload('imagem', local?.imagem, '📍')}
@@ -809,15 +1159,227 @@ const FormRenderer = {
 };
 
 // ============================================
+// GERENCIADOR DE HIERARQUIA DE LOCAIS
+// ============================================
+
+const HierarchyManager = {
+    // Estado atual da navegação hierárquica
+    currentFocusId: null,  // ID do local em foco (null = visão geral)
+    focusPath: [],         // Caminho de navegação [raiz, filho, neto...]
+    
+    // Labels por nível hierárquico
+    levelLabels: ['Região', 'Cidade', 'Local', 'Sub-local', 'Detalhe'],
+    
+    // Calcular nível hierárquico de um local
+    getLevel(localId, locais) {
+        let level = 0;
+        let current = locais.find(l => l.id === localId);
+        
+        while (current && current.parentId) {
+            level++;
+            current = locais.find(l => l.id === current.parentId);
+            if (level > 10) break; // Segurança contra loops infinitos
+        }
+        
+        return Math.min(level, 4); // Máximo 5 níveis (0-4)
+    },
+    
+    // Obter label do nível
+    getLevelLabel(level) {
+        return this.levelLabels[level] || 'Sub-local';
+    },
+    
+    // Obter todos os descendentes de um local (filhos, netos, etc.)
+    getDescendants(localId, locais) {
+        const descendants = [];
+        const queue = [localId];
+        
+        while (queue.length > 0) {
+            const currentId = queue.shift();
+            const children = locais.filter(l => l.parentId === currentId);
+            
+            children.forEach(child => {
+                descendants.push(child.id);
+                queue.push(child.id);
+            });
+        }
+        
+        return descendants;
+    },
+    
+    // Obter caminho de ancestrais (do mais antigo ao atual)
+    getAncestorPath(localId, locais) {
+        const path = [];
+        let current = locais.find(l => l.id === localId);
+        
+        while (current) {
+            path.unshift(current);
+            if (current.parentId) {
+                current = locais.find(l => l.id === current.parentId);
+            } else {
+                break;
+            }
+        }
+        
+        return path;
+    },
+    
+    // Obter filhos diretos de um local
+    getChildren(localId, locais) {
+        return locais.filter(l => l.parentId === localId);
+    },
+    
+    // Focar em um local (mostrar apenas ele e seus descendentes)
+    focusOn(localId) {
+        const locais = DataManager.load('locais');
+        
+        if (!localId) {
+            // Voltar à visão geral
+            this.currentFocusId = null;
+            this.focusPath = [];
+        } else {
+            const local = locais.find(l => l.id === localId);
+            if (!local) return;
+            
+            this.currentFocusId = localId;
+            this.focusPath = this.getAncestorPath(localId, locais);
+        }
+        
+        // Atualizar UI
+        this.updateNavigationUI();
+        app.renderLocais();
+    },
+    
+    // Voltar um nível na hierarquia
+    goBack() {
+        if (this.focusPath.length <= 1) {
+            // Voltar à visão geral
+            this.focusOn(null);
+        } else {
+            // Voltar ao pai
+            const parentIndex = this.focusPath.length - 2;
+            this.focusOn(this.focusPath[parentIndex].id);
+        }
+    },
+    
+    // Resetar para visão geral
+    reset() {
+        this.focusOn(null);
+    },
+    
+    // Verificar se um local deve ser visível no estado atual
+    isVisible(localId, locais) {
+        if (!this.currentFocusId) {
+            // Visão geral: mostrar todos
+            return true;
+        }
+        
+        // No modo foco, mostrar apenas:
+        // 1. O local em foco
+        // 2. Seus descendentes diretos e indiretos
+        if (localId === this.currentFocusId) return true;
+        
+        const descendants = this.getDescendants(this.currentFocusId, locais);
+        return descendants.includes(localId);
+    },
+    
+    // Atualizar UI de navegação (breadcrumb)
+    updateNavigationUI() {
+        const navContainer = document.getElementById('hierarchyNav');
+        if (!navContainer) return;
+        
+        if (!this.currentFocusId) {
+            navContainer.classList.add('hidden');
+            document.getElementById('locaisGrid')?.classList.remove('focused-mode');
+            return;
+        }
+        
+        navContainer.classList.remove('hidden');
+        document.getElementById('locaisGrid')?.classList.add('focused-mode');
+        
+        // Construir navegação
+        let html = `
+            <button class="hierarchy-btn" onclick="HierarchyManager.reset()" title="Visão geral">
+                🏠 Visão Geral
+            </button>
+            <div class="hierarchy-path">
+        `;
+        
+        this.focusPath.forEach((local, index) => {
+            const isLast = index === this.focusPath.length - 1;
+            const level = this.getLevel(local.id, DataManager.load('locais'));
+            
+            if (index > 0) {
+                html += '<span class="hierarchy-path-separator">›</span>';
+            }
+            
+            html += `
+                <span class="hierarchy-path-item ${isLast ? 'current' : ''}" 
+                      onclick="HierarchyManager.focusOn('${local.id}')"
+                      title="${this.getLevelLabel(level)}">
+                    ${local.nome}
+                </span>
+            `;
+        });
+        
+        html += '</div>';
+        
+        // Botão de voltar
+        if (this.focusPath.length > 0) {
+            html += `
+                <button class="hierarchy-btn" onclick="HierarchyManager.goBack()" title="Voltar um nível">
+                    ← Voltar
+                </button>
+            `;
+        }
+        
+        navContainer.innerHTML = html;
+    },
+    
+    // Renderizar indicador de sub-locais em um card
+    renderSublocaisIndicator(local, sublocaisCount) {
+        if (sublocaisCount === 0) return '';
+        
+        return `
+            <div class="card-sublocais-indicator" onclick="event.stopPropagation(); HierarchyManager.focusOn('${local.id}')">
+                📂 ${sublocaisCount} sub-${sublocaisCount === 1 ? 'local' : 'locais'} → Explorar
+            </div>
+        `;
+    }
+};
+
+// ============================================
 // RENDERIZADORES DE VISUALIZAÇÃO DETALHADA
 // ============================================
 
 const DetailRenderer = {
     // Visualização de Local
     renderLocalDetail(local) {
+        const locais = DataManager.load('locais');
         const npcs = DataManager.load('npcs').filter(n => local.npcs?.includes(n.id));
         const pistas = DataManager.load('pistas').filter(p => local.pistas?.includes(p.id));
         const monstros = DataManager.load('monstros').filter(m => local.monstros?.includes(m.id));
+        
+        // Encontrar local pai
+        const parentLocal = local.parentId ? locais.find(l => l.id === local.parentId) : null;
+        
+        // Encontrar sub-locais
+        const subLocais = locais.filter(l => l.parentId === local.id);
+        
+        // Obter breadcrumb completo
+        const getBreadcrumb = () => {
+            const path = [];
+            let current = local;
+            while (current.parentId) {
+                const parent = locais.find(l => l.id === current.parentId);
+                if (parent) {
+                    path.unshift(parent);
+                    current = parent;
+                } else break;
+            }
+            return path;
+        };
+        const breadcrumb = getBreadcrumb();
         
         return `
             <div class="detail-view">
@@ -826,6 +1388,13 @@ const DetailRenderer = {
                 </div>
                 
                 <div class="detail-content">
+                    ${breadcrumb.length > 0 ? `
+                    <div class="detail-breadcrumb">
+                        ${breadcrumb.map(l => `<span class="breadcrumb-item" onclick="app.viewDetail('local', '${l.id}')">${l.nome}</span>`).join(' › ')}
+                        <span class="breadcrumb-current"> › ${local.nome}</span>
+                    </div>
+                    ` : ''}
+                    
                     <div class="detail-header">
                         <h2 class="detail-title">${local.nome}</h2>
                     </div>
@@ -834,6 +1403,19 @@ const DetailRenderer = {
                     <h3 class="detail-section-title">📝 Descrição</h3>
                     <p class="detail-text">${local.descricao || 'Sem descrição'}</p>
                 </div>
+                
+                ${subLocais.length > 0 ? `
+                <div class="detail-section">
+                    <h3 class="detail-section-title">📂 Sub-locais</h3>
+                    <div class="detail-list">
+                        ${subLocais.map(sub => `
+                            <div class="detail-list-item detail-list-item-sublocation" onclick="app.viewDetail('local', '${sub.id}')">
+                                📍 ${sub.nome}
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>
+                ` : ''}
                 
                 ${npcs.length > 0 ? `
                 <div class="detail-section">
@@ -1106,8 +1688,48 @@ const app = {
         UIManager.toggleEmptyState('locais', locais.length === 0);
         
         if (locais.length > 0 && grid) {
-            grid.innerHTML = locais.map(local => CardRenderer.renderLocalCard(local)).join('');
+            // Ordenar locais hierarquicamente
+            const sortedLocais = this.sortLocaisHierarchically(locais);
+            
+            // Renderizar cards
+            grid.innerHTML = sortedLocais.map(local => CardRenderer.renderLocalCard(local)).join('');
+            
+            // Atualizar navegação hierárquica
+            HierarchyManager.updateNavigationUI();
+        } else {
+            // Resetar hierarquia se não há locais
+            HierarchyManager.reset();
         }
+    },
+    
+    // Ordenar locais: locais raiz primeiro, depois sub-locais agrupados por pai
+    sortLocaisHierarchically(locais) {
+        const result = [];
+        const processed = new Set();
+        
+        // Função recursiva para adicionar local e seus filhos
+        const addLocalAndChildren = (local, depth = 0) => {
+            if (processed.has(local.id)) return;
+            processed.add(local.id);
+            result.push({ ...local, _depth: depth });
+            
+            // Encontrar e adicionar filhos
+            const children = locais.filter(l => l.parentId === local.id);
+            children.forEach(child => addLocalAndChildren(child, depth + 1));
+        };
+        
+        // Começar com locais raiz (sem parentId)
+        const rootLocais = locais.filter(l => !l.parentId);
+        rootLocais.forEach(local => addLocalAndChildren(local, 0));
+        
+        // Adicionar locais órfãos (parentId aponta para local inexistente)
+        locais.forEach(local => {
+            if (!processed.has(local.id)) {
+                result.push({ ...local, _depth: 0 });
+            }
+        });
+        
+        return result;
     },
 
     // Renderizar NPCs
@@ -1372,6 +1994,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
 const BrainstormGenerator = {
     currentCategory: null,
+    currentStep: 1,
+    settings: {
+        genero: null,
+        tom: null,
+        epoca: null,
+        tipo: null
+    },
     
     // Templates de ideias para cada categoria
     templates: {
@@ -1652,9 +2281,21 @@ const BrainstormGenerator = {
     // Renderizar ideias na interface
     renderIdeas(category) {
         this.currentCategory = category;
-        const ideas = this.generateMultiple(category, 6);
+        const ideas = [];
+        
+        // Gerar ideias contextualizadas
+        for (let i = 0; i < 6; i++) {
+            ideas.push(this.generateContextualIdea(category));
+        }
+        
         const container = document.getElementById('ideasGrid');
         const resultsSection = document.getElementById('brainstormResults');
+        const contextDesc = document.getElementById('contextDescription');
+        
+        // Atualizar descrição do contexto
+        if (contextDesc) {
+            contextDesc.textContent = this.getGenerationContext();
+        }
         
         resultsSection.classList.remove('hidden');
         container.innerHTML = ideas.map(idea => this.createIdeaCard(idea, category)).join('');
@@ -1711,13 +2352,7 @@ const BrainstormGenerator = {
     
     // Inicializar eventos
     init() {
-        // Botões de categoria
-        document.querySelectorAll('.category-card').forEach(btn => {
-            btn.addEventListener('click', (e) => {
-                const category = e.currentTarget.dataset.category;
-                this.renderIdeas(category);
-            });
-        });
+        this.setupWizard();
         
         // Botão de gerar mais
         const generateBtn = document.getElementById('generateMoreIdeas');
@@ -1728,10 +2363,783 @@ const BrainstormGenerator = {
                 }
             });
         }
+        
+        // Botão de mudar configurações
+        const changeBtn = document.getElementById('changeSettings');
+        if (changeBtn) {
+            changeBtn.addEventListener('click', () => {
+                this.resetWizard();
+            });
+        }
+    },
+    
+    // Configurar wizard
+    setupWizard() {
+        const options = document.querySelectorAll('.wizard-option');
+        const backBtn = document.querySelector('.wizard-back');
+        
+        options.forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                const step = e.currentTarget.closest('.wizard-step');
+                const stepNum = parseInt(step.dataset.step);
+                const value = e.currentTarget.dataset.value;
+                
+                // Marcar seleção
+                step.querySelectorAll('.wizard-option').forEach(opt => opt.classList.remove('selected'));
+                e.currentTarget.classList.add('selected');
+                
+                // Se for random, escolher aleatoriamente
+                let finalValue = value;
+                if (value === 'random') {
+                    const options = Array.from(step.querySelectorAll('.wizard-option:not(.wizard-random)'));
+                    const randomOption = options[Math.floor(Math.random() * options.length)];
+                    finalValue = randomOption.dataset.value;
+                }
+                
+                // Salvar escolha
+                switch(stepNum) {
+                    case 1:
+                        this.settings.genero = finalValue;
+                        break;
+                    case 2:
+                        this.settings.tom = finalValue;
+                        break;
+                    case 3:
+                        this.settings.epoca = finalValue;
+                        break;
+                    case 4:
+                        this.settings.tipo = finalValue;
+                        this.currentCategory = finalValue;
+                        break;
+                }
+                
+                // Avançar para próximo passo
+                setTimeout(() => {
+                    if (stepNum < 4) {
+                        this.goToStep(stepNum + 1);
+                    } else {
+                        this.startGeneration();
+                    }
+                }, 300);
+            });
+        });
+        
+        if (backBtn) {
+            backBtn.addEventListener('click', () => {
+                if (this.currentStep > 1) {
+                    this.goToStep(this.currentStep - 1);
+                }
+            });
+        }
+    },
+    
+    // Ir para passo específico
+    goToStep(step) {
+        this.currentStep = step;
+        
+        // Atualizar steps
+        document.querySelectorAll('.wizard-step').forEach((el, idx) => {
+            el.classList.toggle('active', idx + 1 === step);
+        });
+        
+        // Atualizar progress dots
+        document.querySelectorAll('.progress-dot').forEach((dot, idx) => {
+            dot.classList.toggle('active', idx < step);
+        });
+        
+        // Mostrar/esconder botão voltar
+        const backBtn = document.querySelector('.wizard-back');
+        if (backBtn) {
+            backBtn.style.display = step > 1 ? 'block' : 'none';
+        }
+    },
+    
+    // Resetar wizard
+    resetWizard() {
+        this.settings = { genero: null, tom: null, epoca: null, tipo: null };
+        this.currentStep = 1;
+        this.goToStep(1);
+        
+        document.querySelectorAll('.wizard-option').forEach(opt => opt.classList.remove('selected'));
+        document.getElementById('brainstormWizard').style.display = 'block';
+        document.getElementById('brainstormResults').classList.add('hidden');
+    },
+    
+    // Iniciar geração
+    startGeneration() {
+        document.getElementById('brainstormWizard').style.display = 'none';
+        this.renderIdeas(this.currentCategory);
+    },
+    
+    // Obter contexto de geração
+    getGenerationContext() {
+        const contexts = {
+            genero: {
+                'fantasia-epica': 'épica e mágica',
+                'horror-cosmico': 'sombria e lovecraftiana',
+                'noir-urbano': 'noir e misteriosa',
+                'steampunk': 'vitoriana e engenhosa',
+                'aventura-pirata': 'marítima e aventureira',
+                'faroeste': 'de fronteira selvagem',
+                'cyberpunk': 'high-tech e distópica',
+                'pos-apocaliptico': 'pós-apocalíptica e desolada'
+            },
+            tom: {
+                'sombrio': 'com tom sombrio e consequências reais',
+                'equilibrado': 'equilibrada entre drama e esperança',
+                'heroico': 'heroica e épica',
+                'satirico': 'satírica e irreverente'
+            },
+            epoca: {
+                'era-antiga': 'na era dos impérios antigos',
+                'medieval': 'na era medieval',
+                'renascimento': 'no renascimento',
+                'era-vitoriana': 'na era vitoriana',
+                'contemporaneo': 'nos tempos modernos',
+                'futuro': 'em um futuro distante'
+            }
+        };
+        
+        return `Campanha ${contexts.genero[this.settings.genero]} ${contexts.tom[this.settings.tom]}, ambientada ${contexts.epoca[this.settings.epoca]}`;
+    },
+    
+    // Gerar ideia contextualizada
+    generateContextualIdea(category) {
+        const baseIdea = this.generateIdea(category);
+        const { genero, tom, epoca } = this.settings;
+        
+        // Aplicar modificadores contextuais
+        return this.applyContextModifiers(baseIdea, category, genero, tom, epoca);
+    },
+    
+    // Aplicar modificadores de contexto
+    applyContextModifiers(idea, category, genero, tom, epoca) {
+        // Modifiers específicos por gênero
+        const modifiers = this.getContextualModifiers(genero, tom, epoca);
+        
+        if (category === 'local') {
+            idea.descricao = this.enrichDescription(idea.descricao, modifiers);
+            idea.segredo = this.enrichSecret(idea.segredo, modifiers);
+        } else if (category === 'npc') {
+            idea.personalidade = this.enrichPersonality(idea.personalidade, modifiers);
+            idea.objetivo = this.enrichGoal(idea.objetivo, modifiers);
+        } else if (category === 'pista') {
+            idea.condicao = this.enrichCondition(idea.condicao, modifiers);
+            idea.conteudo = this.enrichContent(idea.conteudo, modifiers);
+        } else if (category === 'monstro') {
+            idea.aparencia = this.enrichAppearance(idea.aparencia, modifiers);
+            idea.origem = this.enrichOrigin(idea.origem, modifiers);
+        }
+        
+        return idea;
+    },
+    
+    // Obter modificadores contextuais
+    getContextualModifiers(genero, tom, epoca) {
+        const mods = {
+            prefix: [],
+            suffix: [],
+            flavor: []
+        };
+        
+        // Modificadores por gênero
+        if (genero === 'fantasia-epica') {
+            mods.flavor = ['arcano', 'místico', 'lendário', 'encantado'];
+        } else if (genero === 'horror-cosmico') {
+            mods.flavor = ['profano', 'insano', 'eldritch', 'amaldiçoado'];
+        } else if (genero === 'cyberpunk') {
+            mods.flavor = ['sintético', 'neural', 'corporativo', 'hackeado'];
+        } else if (genero === 'steampunk') {
+            mods.flavor = ['mecânico', 'a vapor', 'vitoriano', 'engenhoso'];
+        } else if (genero === 'aventura-pirata') {
+            mods.flavor = ['náutico', 'saqueado', 'lendário', 'oceânico'];
+        }
+        
+        // Modificadores por tom
+        if (tom === 'sombrio') {
+            mods.prefix.push('corrompido', 'maldito', 'profanado');
+        } else if (tom === 'heroico') {
+            mods.prefix.push('glorioso', 'nobre', 'lendário');
+        }
+        
+        return mods;
+    },
+    
+    // Enriquecer descrições
+    enrichDescription(desc, mods) {
+        if (mods.flavor.length > 0 && Math.random() > 0.5) {
+            const flavor = mods.flavor[Math.floor(Math.random() * mods.flavor.length)];
+            return desc.replace(/Um lugar/, `Um lugar ${flavor}`);
+        }
+        return desc;
+    },
+    
+    enrichSecret(secret, mods) {
+        return secret;
+    },
+    
+    enrichPersonality(personality, mods) {
+        return personality;
+    },
+    
+    enrichGoal(goal, mods) {
+        return goal;
+    },
+    
+    enrichCondition(condition, mods) {
+        return condition;
+    },
+    
+    enrichContent(content, mods) {
+        return content;
+    },
+    
+    enrichAppearance(appearance, mods) {
+        if (mods.flavor.length > 0 && Math.random() > 0.5) {
+            const flavor = mods.flavor[Math.floor(Math.random() * mods.flavor.length)];
+            return `${appearance}, com aspecto ${flavor}`;
+        }
+        return appearance;
+    },
+    
+    enrichOrigin(origin, mods) {
+        return origin;
     }
 };
 
 // Inicializar brainstorm quando DOM carregar
 document.addEventListener('DOMContentLoaded', () => {
     BrainstormGenerator.init();
+});
+
+// ============================================
+// MAPA MENTAL / CANVAS
+// ============================================
+
+const MindMapCanvas = {
+    container: null,
+    svg: null,
+    nodesContainer: null,
+    nodes: [],
+    connections: [],
+    scale: 1,
+    panX: 0,
+    panY: 0,
+    isDragging: false,
+    draggedNode: null,
+    dragStartX: 0,
+    dragStartY: 0,
+    isPanning: false,
+    panStartX: 0,
+    panStartY: 0,
+    
+    // Inicializar
+    init() {
+        this.container = document.getElementById('mindMapCanvas');
+        this.svg = document.getElementById('connectionsSvg');
+        this.nodesContainer = document.getElementById('nodesContainer');
+        
+        if (!this.container || !this.svg || !this.nodesContainer) return;
+        
+        this.setupEvents();
+        this.loadData();
+    },
+    
+    // Configurar eventos
+    setupEvents() {
+        // Botões de controle
+        document.getElementById('canvasReset')?.addEventListener('click', () => this.reset());
+        document.getElementById('canvasAutoOrganize')?.addEventListener('click', () => this.autoOrganize());
+        
+        // Pan do canvas
+        this.container.addEventListener('mousedown', (e) => {
+            if (e.target === this.container || e.target === this.nodesContainer) {
+                e.preventDefault();
+                this.isPanning = true;
+                this.panStartX = e.clientX - this.panX;
+                this.panStartY = e.clientY - this.panY;
+            }
+        });
+        
+        this.container.addEventListener('mousemove', (e) => {
+            if (this.isPanning) {
+                this.panX = e.clientX - this.panStartX;
+                this.panY = e.clientY - this.panStartY;
+                this.updateTransform();
+            }
+        });
+        
+        this.container.addEventListener('mouseup', () => {
+            this.isPanning = false;
+        });
+        
+        this.container.addEventListener('mouseleave', () => {
+            this.isPanning = false;
+        });
+        
+        // Zoom com scroll
+        this.container.addEventListener('wheel', (e) => {
+            e.preventDefault();
+            const delta = e.deltaY > 0 ? 0.9 : 1.1;
+            this.zoom(delta);
+        }, { passive: false });
+    },
+    
+    // Carregar dados do localStorage
+    loadData() {
+        this.nodes = [];
+        this.connections = [];
+        
+        const locais = DataManager.load('locais') || [];
+        const npcs = DataManager.load('npcs') || [];
+        const pistas = DataManager.load('pistas') || [];
+        const monstros = DataManager.load('monstros') || [];
+        
+        // Criar nós para cada item
+        locais.forEach((item, idx) => {
+            this.nodes.push({
+                id: `local-${item.id}`,
+                type: 'local',
+                data: item,
+                x: 200 + (idx % 4) * 250,
+                y: 100 + Math.floor(idx / 4) * 200
+            });
+        });
+        
+        npcs.forEach((item, idx) => {
+            this.nodes.push({
+                id: `npc-${item.id}`,
+                type: 'npc',
+                data: item,
+                x: 200 + (idx % 4) * 250,
+                y: 350 + Math.floor(idx / 4) * 200
+            });
+        });
+        
+        pistas.forEach((item, idx) => {
+            this.nodes.push({
+                id: `pista-${item.id}`,
+                type: 'pista',
+                data: item,
+                x: 200 + (idx % 4) * 250,
+                y: 600 + Math.floor(idx / 4) * 200
+            });
+        });
+        
+        monstros.forEach((item, idx) => {
+            this.nodes.push({
+                id: `monstro-${item.id}`,
+                type: 'monstro',
+                data: item,
+                x: 200 + (idx % 4) * 250,
+                y: 850 + Math.floor(idx / 4) * 200
+            });
+        });
+        
+        // Criar conexões baseadas nos relacionamentos
+        this.createConnections();
+        this.render();
+    },
+    
+    // Criar conexões entre nós
+    createConnections() {
+        this.nodes.forEach(node => {
+            const data = node.data;
+            
+            // Conexões de locais
+            if (node.type === 'local') {
+                if (data.npcs && data.npcs.length > 0) {
+                    data.npcs.forEach(npcId => {
+                        const targetNode = this.nodes.find(n => n.id === `npc-${npcId}`);
+                        if (targetNode) {
+                            this.connections.push({
+                                from: node.id,
+                                to: targetNode.id,
+                                type: 'local'
+                            });
+                        }
+                    });
+                }
+                if (data.pistas && data.pistas.length > 0) {
+                    data.pistas.forEach(pistaId => {
+                        const targetNode = this.nodes.find(n => n.id === `pista-${pistaId}`);
+                        if (targetNode) {
+                            this.connections.push({
+                                from: node.id,
+                                to: targetNode.id,
+                                type: 'local'
+                            });
+                        }
+                    });
+                }
+                if (data.monstros && data.monstros.length > 0) {
+                    data.monstros.forEach(monstroId => {
+                        const targetNode = this.nodes.find(n => n.id === `monstro-${monstroId}`);
+                        if (targetNode) {
+                            this.connections.push({
+                                from: node.id,
+                                to: targetNode.id,
+                                type: 'local'
+                            });
+                        }
+                    });
+                }
+            }
+            
+            // Conexões de NPCs
+            if (node.type === 'npc') {
+                if (data.locais && data.locais.length > 0) {
+                    data.locais.forEach(localId => {
+                        const targetNode = this.nodes.find(n => n.id === `local-${localId}`);
+                        if (targetNode && !this.connections.find(c => 
+                            (c.from === node.id && c.to === targetNode.id) ||
+                            (c.from === targetNode.id && c.to === node.id)
+                        )) {
+                            this.connections.push({
+                                from: node.id,
+                                to: targetNode.id,
+                                type: 'npc'
+                            });
+                        }
+                    });
+                }
+            }
+        });
+    },
+    
+    // Renderizar canvas
+    render() {
+        this.nodesContainer.innerHTML = '';
+        this.svg.innerHTML = '';
+        
+        // Renderizar linhas de conexão
+        this.connections.forEach(conn => {
+            const fromNode = this.nodes.find(n => n.id === conn.from);
+            const toNode = this.nodes.find(n => n.id === conn.to);
+            
+            if (fromNode && toNode) {
+                const line = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+                const path = this.calculateConnectionPath(fromNode, toNode);
+                line.setAttribute('d', path);
+                line.setAttribute('class', `connection-line type-${conn.type}`);
+                line.setAttribute('data-from', conn.from);
+                line.setAttribute('data-to', conn.to);
+                this.svg.appendChild(line);
+            }
+        });
+        
+        // Renderizar nós
+        this.nodes.forEach(node => {
+            const nodeEl = this.createNodeElement(node);
+            this.nodesContainer.appendChild(nodeEl);
+        });
+    },
+    
+    // Calcular caminho da conexão (curva suave)
+    calculateConnectionPath(fromNode, toNode) {
+        const x1 = fromNode.x + 110;
+        const y1 = fromNode.y + 50;
+        const x2 = toNode.x + 110;
+        const y2 = toNode.y + 50;
+        
+        const dx = x2 - x1;
+        const dy = y2 - y1;
+        const distance = Math.sqrt(dx * dx + dy * dy);
+        const controlOffset = Math.min(distance * 0.3, 100);
+        
+        const cx1 = x1 + controlOffset;
+        const cy1 = y1;
+        const cx2 = x2 - controlOffset;
+        const cy2 = y2;
+        
+        return `M ${x1} ${y1} C ${cx1} ${cy1}, ${cx2} ${cy2}, ${x2} ${y2}`;
+    },
+    
+    // Criar elemento de nó
+    createNodeElement(node) {
+        const div = document.createElement('div');
+        div.className = `canvas-node type-${node.type}`;
+        div.style.left = `${node.x}px`;
+        div.style.top = `${node.y}px`;
+        div.setAttribute('data-id', node.id);
+        
+        const data = node.data;
+        let summary = '';
+        let details = '';
+        
+        switch(node.type) {
+            case 'local':
+                summary = data.descricao?.substring(0, 80) + '...' || '';
+                details = `<p><strong>Tipo:</strong> ${data.tipo || 'N/A'}</p>
+                          <p><strong>Perigos:</strong> ${data.perigos || 'Nenhum'}</p>`;
+                break;
+            case 'npc':
+                summary = data.profissao || '';
+                details = `<p><strong>Idade:</strong> ${data.idade || 'N/A'}</p>
+                          <p><strong>Personalidade:</strong> ${data.personalidade || 'N/A'}</p>`;
+                break;
+            case 'pista':
+                summary = data.tipo || '';
+                details = `<p><strong>Localização:</strong> ${data.localizacao || 'N/A'}</p>
+                          <p><strong>Informação:</strong> ${data.informacao?.substring(0, 100) || 'N/A'}</p>`;
+                break;
+            case 'monstro':
+                summary = `ND ${data.nd || '?'}`;
+                details = `<p><strong>Tipo:</strong> ${data.tipo || 'N/A'}</p>
+                          <p><strong>Habitat:</strong> ${data.habitat || 'N/A'}</p>`;
+                break;
+        }
+        
+        div.innerHTML = `
+            <div class="node-header">
+                <span class="node-type">${node.type}</span>
+                <button class="node-toggle" data-action="toggle">▼</button>
+            </div>
+            ${data.imagem ? `<img src="${data.imagem}" class="node-image" alt="${data.nome}">` : ''}
+            <h4 class="node-title">${data.nome}</h4>
+            <p class="node-summary">${summary}</p>
+            <div class="node-details" style="display: none;">${details}</div>
+        `;
+        
+        // Eventos de drag
+        div.addEventListener('mousedown', (e) => {
+            if (e.target.closest('.node-toggle')) {
+                this.toggleNode(div);
+                return;
+            }
+            this.startDrag(node, e);
+        });
+        
+        return div;
+    },
+    
+    // Toggle expansão do nó
+    toggleNode(nodeEl) {
+        const details = nodeEl.querySelector('.node-details');
+        const toggle = nodeEl.querySelector('.node-toggle');
+        
+        if (details.style.display === 'none') {
+            details.style.display = 'block';
+            toggle.textContent = '▲';
+            nodeEl.classList.add('expanded');
+        } else {
+            details.style.display = 'none';
+            toggle.textContent = '▼';
+            nodeEl.classList.remove('expanded');
+        }
+    },
+    
+    // Iniciar drag de nó
+    startDrag(node, e) {
+        e.preventDefault();
+        this.isDragging = true;
+        this.draggedNode = node;
+        this.dragStartX = e.clientX - node.x;
+        this.dragStartY = e.clientY - node.y;
+        
+        const mousemove = (e) => {
+            if (this.isDragging && this.draggedNode) {
+                this.draggedNode.x = e.clientX - this.dragStartX;
+                this.draggedNode.y = e.clientY - this.dragStartY;
+                this.updateNodePosition(this.draggedNode);
+            }
+        };
+        
+        const mouseup = () => {
+            this.isDragging = false;
+            this.draggedNode = null;
+            document.removeEventListener('mousemove', mousemove);
+            document.removeEventListener('mouseup', mouseup);
+        };
+        
+        document.addEventListener('mousemove', mousemove);
+        document.addEventListener('mouseup', mouseup);
+    },
+    
+    // Atualizar posição do nó
+    updateNodePosition(node) {
+        const nodeEl = this.nodesContainer.querySelector(`[data-id="${node.id}"]`);
+        if (nodeEl) {
+            nodeEl.style.left = `${node.x}px`;
+            nodeEl.style.top = `${node.y}px`;
+        }
+        
+        // Atualizar conexões
+        this.updateConnections(node.id);
+    },
+    
+    // Atualizar conexões de um nó
+    updateConnections(nodeId) {
+        const relatedConnections = this.connections.filter(c => c.from === nodeId || c.to === nodeId);
+        
+        relatedConnections.forEach(conn => {
+            const fromNode = this.nodes.find(n => n.id === conn.from);
+            const toNode = this.nodes.find(n => n.id === conn.to);
+            
+            if (fromNode && toNode) {
+                const line = this.svg.querySelector(`[data-from="${conn.from}"][data-to="${conn.to}"]`);
+                if (line) {
+                    const path = this.calculateConnectionPath(fromNode, toNode);
+                    line.setAttribute('d', path);
+                }
+            }
+        });
+    },
+    
+    // Zoom
+    zoom(factor) {
+        this.scale *= factor;
+        this.scale = Math.max(0.3, Math.min(3, this.scale));
+        this.updateTransform();
+    },
+    
+    // Resetar visualização
+    reset() {
+        this.scale = 1;
+        this.panX = 0;
+        this.panY = 0;
+        this.updateTransform();
+    },
+    
+    // Atualizar transformação
+    updateTransform() {
+        this.nodesContainer.style.transform = `translate(${this.panX}px, ${this.panY}px) scale(${this.scale})`;
+        this.svg.style.transform = `translate(${this.panX}px, ${this.panY}px) scale(${this.scale})`;
+    },
+    
+    // Organizar automaticamente
+    autoOrganize() {
+        const types = ['local', 'npc', 'pista', 'monstro'];
+        const spacing = 280;
+        const startY = 100;
+        
+        types.forEach((type, typeIdx) => {
+            const typeNodes = this.nodes.filter(n => n.type === type);
+            typeNodes.forEach((node, idx) => {
+                node.x = 150 + (idx % 5) * spacing;
+                node.y = startY + typeIdx * 250;
+                this.updateNodePosition(node);
+            });
+        });
+    }
+};
+
+// Inicializar quando view do canvas for ativada
+document.addEventListener('DOMContentLoaded', () => {
+    const canvasView = document.getElementById('view-canvas');
+    if (canvasView) {
+        const observer = new MutationObserver((mutations) => {
+            mutations.forEach((mutation) => {
+                if (mutation.target.classList.contains('active')) {
+                    MindMapCanvas.init();
+                    observer.disconnect();
+                }
+            });
+        });
+        
+        observer.observe(canvasView, { attributes: true, attributeFilter: ['class'] });
+    }
+});
+
+// ============================================
+// SELETOR DE COR DE DESTAQUE
+// ============================================
+
+const ColorPicker = {
+    trigger: null,
+    panel: null,
+    currentColor: null,
+    
+    init() {
+        this.trigger = document.getElementById('colorPickerTrigger');
+        this.panel = document.getElementById('colorPickerPanel');
+        
+        if (!this.trigger || !this.panel) return;
+        
+        // Carregar cor salva
+        const savedColor = localStorage.getItem('rpg-accent-color');
+        const savedRgb = localStorage.getItem('rpg-accent-color-rgb');
+        if (savedColor && savedRgb) {
+            this.applyColor(savedColor, savedRgb);
+            this.markSelected(savedColor);
+        }
+        
+        // Toggle painel
+        this.trigger.addEventListener('click', () => {
+            this.panel.classList.toggle('active');
+        });
+        
+        // Fechar ao clicar fora
+        document.addEventListener('click', (e) => {
+            if (!this.trigger.contains(e.target) && !this.panel.contains(e.target)) {
+                this.panel.classList.remove('active');
+            }
+        });
+        
+        // Opções de cor
+        document.querySelectorAll('.color-option').forEach(option => {
+            option.addEventListener('click', () => {
+                const color = option.dataset.color;
+                const rgb = option.dataset.rgb;
+                
+                this.applyColor(color, rgb);
+                this.markSelected(color);
+                this.saveColor(color, rgb);
+            });
+        });
+        
+        // Fechar painel quando o mouse sair da área
+        this.panel.addEventListener('mouseleave', () => {
+            this.panel.classList.remove('active');
+        });
+    },
+    
+    applyColor(color, rgb) {
+        const root = document.documentElement;
+        
+        // Calcular tons derivados
+        const lightColor = this.lightenColor(color, 20);
+        const darkColor = this.darkenColor(color, 15);
+        
+        root.style.setProperty('--color-primary', color);
+        root.style.setProperty('--color-primary-light', lightColor);
+        root.style.setProperty('--color-primary-dark', darkColor);
+        root.style.setProperty('--color-primary-rgb', rgb);
+        
+        this.currentColor = color;
+    },
+    
+    markSelected(color) {
+        document.querySelectorAll('.color-option').forEach(option => {
+            option.classList.toggle('selected', option.dataset.color === color);
+        });
+    },
+    
+    saveColor(color, rgb) {
+        localStorage.setItem('rpg-accent-color', color);
+        localStorage.setItem('rpg-accent-color-rgb', rgb);
+    },
+    
+    lightenColor(hex, percent) {
+        const num = parseInt(hex.replace('#', ''), 16);
+        const amt = Math.round(2.55 * percent);
+        const R = Math.min(255, (num >> 16) + amt);
+        const G = Math.min(255, ((num >> 8) & 0x00FF) + amt);
+        const B = Math.min(255, (num & 0x0000FF) + amt);
+        return '#' + (0x1000000 + R * 0x10000 + G * 0x100 + B).toString(16).slice(1);
+    },
+    
+    darkenColor(hex, percent) {
+        const num = parseInt(hex.replace('#', ''), 16);
+        const amt = Math.round(2.55 * percent);
+        const R = Math.max(0, (num >> 16) - amt);
+        const G = Math.max(0, ((num >> 8) & 0x00FF) - amt);
+        const B = Math.max(0, (num & 0x0000FF) - amt);
+        return '#' + (0x1000000 + R * 0x10000 + G * 0x100 + B).toString(16).slice(1);
+    }
+};
+
+// Inicializar Color Picker
+document.addEventListener('DOMContentLoaded', () => {
+    ColorPicker.init();
 });

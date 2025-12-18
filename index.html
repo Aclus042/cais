@@ -29,6 +29,9 @@
             <button class="nav-item" data-view="brainstorm">
                 <span class="nav-label">Brainstorm</span>
             </button>
+            <button class="nav-item" data-view="canvas">
+                <span class="nav-label">Mapa Mental</span>
+            </button>
         </nav>
         <div class="sidebar-footer">
             <button class="btn-export" id="exportData">Exportar</button>
@@ -55,6 +58,12 @@
                     <span>+</span> Criar Local
                 </button>
             </div>
+            
+            <!-- Navegação Hierárquica -->
+            <nav id="hierarchyNav" class="hierarchy-nav hidden">
+                <!-- Conteúdo gerado dinamicamente pelo HierarchyManager -->
+            </nav>
+            
             <div class="empty-state" id="emptyLocais">
                 <div class="empty-icon"></div>
                 <h3>Nenhum local criado ainda</h3>
@@ -129,34 +138,208 @@
                 </div>
             </div>
             
-            <div class="brainstorm-selector">
-                <h3>Escolha o tipo de ideia que deseja explorar:</h3>
-                <div class="brainstorm-categories">
-                    <button class="category-card" data-category="local">
-                        <span class="category-title">Locais</span>
-                        <span class="category-desc">Lugares misteriosos e interessantes</span>
-                    </button>
-                    <button class="category-card" data-category="npc">
-                        <span class="category-title">NPCs</span>
-                        <span class="category-desc">Personagens memoráveis</span>
-                    </button>
-                    <button class="category-card" data-category="pista">
-                        <span class="category-title">Pistas</span>
-                        <span class="category-desc">Documentos e evidências</span>
-                    </button>
-                    <button class="category-card" data-category="monstro">
-                        <span class="category-title">Monstros</span>
-                        <span class="category-desc">Criaturas únicas e desafiadoras</span>
-                    </button>
+            <!-- Wizard de Configuração -->
+            <div id="brainstormWizard" class="brainstorm-wizard">
+                <!-- Passo 1: Gênero -->
+                <div class="wizard-step active" data-step="1">
+                    <h3 class="wizard-question">Que tipo de história você quer contar?</h3>
+                    <div class="wizard-options">
+                        <button class="wizard-option" data-value="fantasia-epica">
+                            <span class="option-emoji">⚔️</span>
+                            <span class="option-title">Fantasia Épica</span>
+                            <span class="option-desc">Magia, dragões e heróis lendários</span>
+                        </button>
+                        <button class="wizard-option" data-value="horror-cosmico">
+                            <span class="option-emoji">🐙</span>
+                            <span class="option-title">Horror Cósmico</span>
+                            <span class="option-desc">Mistérios insondáveis e terror ancestral</span>
+                        </button>
+                        <button class="wizard-option" data-value="noir-urbano">
+                            <span class="option-emoji">🕵️</span>
+                            <span class="option-title">Noir Urbano</span>
+                            <span class="option-desc">Crimes, corrupção e mistérios sombrios</span>
+                        </button>
+                        <button class="wizard-option" data-value="steampunk">
+                            <span class="option-emoji">⚙️</span>
+                            <span class="option-title">Steampunk</span>
+                            <span class="option-desc">Vapor, engrenagens e invenções vitorianas</span>
+                        </button>
+                        <button class="wizard-option" data-value="aventura-pirata">
+                            <span class="option-emoji">🏴‍☠️</span>
+                            <span class="option-title">Aventura Pirata</span>
+                            <span class="option-desc">Mares perigosos, tesouros e liberdade</span>
+                        </button>
+                        <button class="wizard-option" data-value="faroeste">
+                            <span class="option-emoji">🤠</span>
+                            <span class="option-title">Faroeste Místico</span>
+                            <span class="option-desc">Fronteira selvagem com magia e folclore</span>
+                        </button>
+                        <button class="wizard-option" data-value="cyberpunk">
+                            <span class="option-emoji">🌆</span>
+                            <span class="option-title">Cyberpunk</span>
+                            <span class="option-desc">Tecnologia, corporações e ruas neon</span>
+                        </button>
+                        <button class="wizard-option" data-value="pos-apocaliptico">
+                            <span class="option-emoji">☢️</span>
+                            <span class="option-title">Pós-Apocalíptico</span>
+                            <span class="option-desc">Sobrevivência em mundo devastado</span>
+                        </button>
+                        <button class="wizard-option wizard-random" data-value="random">
+                            <span class="option-emoji">🎲</span>
+                            <span class="option-title">Surpresa-me!</span>
+                            <span class="option-desc">Deixe o destino escolher</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Passo 2: Tom -->
+                <div class="wizard-step" data-step="2">
+                    <h3 class="wizard-question">Qual o tom da sua campanha?</h3>
+                    <div class="wizard-options">
+                        <button class="wizard-option" data-value="sombrio">
+                            <span class="option-emoji">🌑</span>
+                            <span class="option-title">Sombrio e Pesado</span>
+                            <span class="option-desc">Temas adultos, consequências reais</span>
+                        </button>
+                        <button class="wizard-option" data-value="equilibrado">
+                            <span class="option-emoji">⚖️</span>
+                            <span class="option-title">Equilibrado</span>
+                            <span class="option-desc">Mistura de drama e momentos leves</span>
+                        </button>
+                        <button class="wizard-option" data-value="heroico">
+                            <span class="option-emoji">✨</span>
+                            <span class="option-title">Heroico e Épico</span>
+                            <span class="option-desc">Grandes feitos e vitórias memoráveis</span>
+                        </button>
+                        <button class="wizard-option" data-value="satirico">
+                            <span class="option-emoji">🎭</span>
+                            <span class="option-title">Satírico e Irreverente</span>
+                            <span class="option-desc">Humor negro e crítica social</span>
+                        </button>
+                        <button class="wizard-option wizard-random" data-value="random">
+                            <span class="option-emoji">🎲</span>
+                            <span class="option-title">Surpresa-me!</span>
+                            <span class="option-desc">Deixe o destino escolher</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Passo 3: Época -->
+                <div class="wizard-step" data-step="3">
+                    <h3 class="wizard-question">Em que época se passa?</h3>
+                    <div class="wizard-options">
+                        <button class="wizard-option" data-value="era-antiga">
+                            <span class="option-emoji">🏛️</span>
+                            <span class="option-title">Era Antiga</span>
+                            <span class="option-desc">Impérios, mitos e bronze</span>
+                        </button>
+                        <button class="wizard-option" data-value="medieval">
+                            <span class="option-emoji">🏰</span>
+                            <span class="option-title">Medieval</span>
+                            <span class="option-desc">Castelos, cavaleiros e feudalismo</span>
+                        </button>
+                        <button class="wizard-option" data-value="renascimento">
+                            <span class="option-emoji">🎨</span>
+                            <span class="option-title">Renascimento</span>
+                            <span class="option-desc">Arte, intriga política e descobertas</span>
+                        </button>
+                        <button class="wizard-option" data-value="era-vitoriana">
+                            <span class="option-emoji">🎩</span>
+                            <span class="option-title">Era Vitoriana</span>
+                            <span class="option-desc">Industrialização e alta sociedade</span>
+                        </button>
+                        <button class="wizard-option" data-value="contemporaneo">
+                            <span class="option-emoji">🌐</span>
+                            <span class="option-title">Contemporâneo</span>
+                            <span class="option-desc">Mundo moderno e tecnologia atual</span>
+                        </button>
+                        <button class="wizard-option" data-value="futuro">
+                            <span class="option-emoji">🚀</span>
+                            <span class="option-title">Futuro</span>
+                            <span class="option-desc">Espaço, IA e transhumanismo</span>
+                        </button>
+                        <button class="wizard-option wizard-random" data-value="random">
+                            <span class="option-emoji">🎲</span>
+                            <span class="option-title">Surpresa-me!</span>
+                            <span class="option-desc">Deixe o destino escolher</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Passo 4: Tipo de Conteúdo -->
+                <div class="wizard-step" data-step="4">
+                    <h3 class="wizard-question">O que você quer criar agora?</h3>
+                    <div class="wizard-options">
+                        <button class="wizard-option" data-value="local">
+                            <span class="option-emoji">📍</span>
+                            <span class="option-title">Local</span>
+                            <span class="option-desc">Lugares memoráveis</span>
+                        </button>
+                        <button class="wizard-option" data-value="npc">
+                            <span class="option-emoji">👤</span>
+                            <span class="option-title">NPC</span>
+                            <span class="option-desc">Personagens complexos</span>
+                        </button>
+                        <button class="wizard-option" data-value="pista">
+                            <span class="option-emoji">🔍</span>
+                            <span class="option-title">Pista</span>
+                            <span class="option-desc">Evidências e documentos</span>
+                        </button>
+                        <button class="wizard-option" data-value="monstro">
+                            <span class="option-emoji">👹</span>
+                            <span class="option-title">Monstro</span>
+                            <span class="option-desc">Criaturas ameaçadoras</span>
+                        </button>
+                        <button class="wizard-option wizard-random" data-value="random">
+                            <span class="option-emoji">🎲</span>
+                            <span class="option-title">Surpresa-me!</span>
+                            <span class="option-desc">Deixe o destino escolher</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Navegação -->
+                <div class="wizard-navigation">
+                    <button class="btn-secondary wizard-back" style="display: none;">← Voltar</button>
+                    <div class="wizard-progress">
+                        <span class="progress-dot active"></span>
+                        <span class="progress-dot"></span>
+                        <span class="progress-dot"></span>
+                        <span class="progress-dot"></span>
+                    </div>
                 </div>
             </div>
 
+            <!-- Resultados -->
             <div class="brainstorm-results hidden" id="brainstormResults">
                 <div class="results-header">
-                    <h3>Ideias Geradas</h3>
-                    <button class="btn-primary" id="generateMoreIdeas">🎲 Gerar Mais</button>
+                    <div class="results-context">
+                        <h3>Ideias Geradas</h3>
+                        <p id="contextDescription" class="context-desc"></p>
+                    </div>
+                    <div class="results-actions">
+                        <button class="btn-secondary" id="changeSettings">⚙️ Mudar Configurações</button>
+                        <button class="btn-primary" id="generateMoreIdeas">🎲 Gerar Mais</button>
+                    </div>
                 </div>
                 <div id="ideasGrid" class="ideas-grid"></div>
+            </div>
+        </section>
+
+        <!-- VIEW: CANVAS -->
+        <section id="view-canvas" class="view-section">
+            <div class="canvas-header">
+                <div>
+                    <h2 class="view-title">Mapa Mental</h2>
+                </div>
+                <div class="canvas-controls">
+                    <button class="btn-canvas" id="canvasReset">⟲</button>
+                    <button class="btn-primary" id="canvasAutoOrganize">Organizar</button>
+                </div>
+            </div>
+            <div id="mindMapCanvas" class="mind-map-container">
+                <svg id="connectionsSvg" class="connections-layer"></svg>
+                <div id="nodesContainer" class="nodes-layer"></div>
             </div>
         </section>
 
@@ -176,32 +359,98 @@
         </div>
     </div>
 
-    <!-- MODAL DE AJUSTE DE IMAGEM -->
+    <!-- MODAL DE CROP DE IMAGEM -->
     <div id="imageModal" class="modal">
-        <div class="modal-overlay"></div>
-        <div class="modal-dialog image-modal">
+        <div class="modal-overlay" onclick="ImageManager.closeModal()"></div>
+        <div class="modal-dialog crop-modal">
             <div class="modal-header">
-                <h3 class="modal-title">📐 Ajustar Tamanho da Imagem</h3>
+                <h3 class="modal-title">✂️ Recortar Imagem</h3>
                 <button class="modal-close" onclick="ImageManager.closeModal()">&times;</button>
             </div>
-            <div class="modal-body image-modal-body">
-                <div class="image-preview-wrapper">
-                    <div id="imagePreview" class="image-preview-box"></div>
-                </div>
-                <div class="size-control">
-                    <label class="size-label">🔍 Zoom: <strong id="sizeValue">100%</strong></label>
-                    <input type="range" id="sizeSlider" min="50" max="150" value="100" step="5" 
-                           oninput="ImageManager.updateZoom()">
-                    <div class="size-hints">
-                        <span>Menos imagem</span>
-                        <span>Mais imagem</span>
+            <div class="modal-body crop-modal-body">
+                <!-- Instruções -->
+                <p class="crop-instructions">
+                    Arraste a imagem para ajustar a área visível. Use o zoom para ver mais ou menos da imagem.
+                </p>
+                
+                <!-- Área de Crop com Canvas -->
+                <div class="crop-area-wrapper">
+                    <div class="crop-area">
+                        <canvas id="cropCanvas" class="crop-canvas"></canvas>
+                        <!-- Grid de referência -->
+                        <div class="crop-grid">
+                            <div class="crop-grid-line vertical"></div>
+                            <div class="crop-grid-line vertical"></div>
+                            <div class="crop-grid-line horizontal"></div>
+                            <div class="crop-grid-line horizontal"></div>
+                        </div>
                     </div>
+                </div>
+                
+                <!-- Controle de Zoom -->
+                <div class="crop-zoom-control">
+                    <span class="crop-zoom-icon">🔍</span>
+                    <input type="range" id="cropZoomSlider" class="crop-zoom-slider" 
+                           min="100" max="300" value="100" step="5">
+                    <span class="crop-zoom-value" id="cropZoomValue">100%</span>
+                </div>
+                
+                <!-- Dicas visuais -->
+                <div class="crop-hints">
+                    <span>← Menos zoom = mais contexto</span>
+                    <span>Mais zoom = mais detalhe →</span>
                 </div>
             </div>
             <div class="modal-footer">
-                <button class="btn-secondary" onclick="ImageManager.closeModal()">✕ Cancelar</button>
-                <button class="btn-primary" onclick="ImageManager.confirmImage()">✓ Confirmar</button>
+                <button class="btn-secondary" onclick="ImageManager.closeModal()">
+                    ✕ Cancelar
+                </button>
+                <button class="btn-primary" onclick="ImageManager.confirmCrop()">
+                    ✓ Aplicar Recorte
+                </button>
             </div>
+        </div>
+    </div>
+
+    <!-- SELETOR DE COR DE DESTAQUE -->
+    <div id="colorPickerTrigger" class="color-picker-trigger">
+        <span class="picker-icon">🎨</span>
+    </div>
+    <div id="colorPickerPanel" class="color-picker-panel">
+        <div class="panel-header">
+            <span>Escolha sua cor de destaque</span>
+        </div>
+        <div class="color-options">
+            <button class="color-option" data-color="#6366f1" data-rgb="99, 102, 241" title="Índigo">
+                <span style="background: #6366f1;"></span>
+            </button>
+            <button class="color-option" data-color="#8b5cf6" data-rgb="139, 92, 246" title="Violeta">
+                <span style="background: #8b5cf6;"></span>
+            </button>
+            <button class="color-option" data-color="#ec4899" data-rgb="236, 72, 153" title="Rosa">
+                <span style="background: #ec4899;"></span>
+            </button>
+            <button class="color-option" data-color="#ef4444" data-rgb="239, 68, 68" title="Vermelho">
+                <span style="background: #ef4444;"></span>
+            </button>
+            <button class="color-option" data-color="#f97316" data-rgb="249, 115, 22" title="Laranja">
+                <span style="background: #f97316;"></span>
+            </button>
+            <button class="color-option" data-color="#eab308" data-rgb="234, 179, 8" title="Amarelo">
+                <span style="background: #eab308;"></span>
+            </button>
+            <button class="color-option" data-color="#22c55e" data-rgb="34, 197, 94" title="Verde">
+                <span style="background: #22c55e;"></span>
+            </button>
+            <button class="color-option" data-color="#14b8a6" data-rgb="20, 184, 166" title="Teal">
+                <span style="background: #14b8a6;"></span>
+            </button>
+            <button class="color-option" data-color="#06b6d4" data-rgb="6, 182, 212" title="Ciano">
+                <span style="background: #06b6d4;"></span>
+            </button>
+            <button class="color-option" data-color="#3b82f6" data-rgb="59, 130, 246" title="Azul">
+                <span style="background: #3b82f6;"></span>
+            </button>
         </div>
     </div>
 

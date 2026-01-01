@@ -1,0 +1,350 @@
+<!DOCTYPE html>
+<html lang="pt-BR" data-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RPG Card Canvas — Dossiê do Mestre</title>
+    <link rel="stylesheet" href="css/styles.css">
+    <link rel="stylesheet" href="css/themes.css">
+    <link rel="stylesheet" href="css/cards.css">
+    <link rel="stylesheet" href="css/graph.css">
+    <link rel="stylesheet" href="css/modal.css">
+</head>
+<body>
+    <!-- ==================== HEADER ==================== -->
+    <header class="main-header">
+        <div class="header-left">
+            <h1 class="logo">🎲 RPG Card Canvas</h1>
+            <span class="session-name" id="sessionName">Nova Sessão</span>
+        </div>
+        
+        <nav class="view-switcher">
+            <button class="view-btn active" data-view="grid" title="Visualização em Grid">
+                <span class="icon">▦</span>
+                <span class="label">Cards</span>
+            </button>
+            <button class="view-btn" data-view="graph" title="Visualização em Grafo">
+                <span class="icon">◉</span>
+                <span class="label">Canvas</span>
+            </button>
+            <button class="view-btn" data-view="detail" title="Visualização Detalhada">
+                <span class="icon">▣</span>
+                <span class="label">Foco</span>
+            </button>
+        </nav>
+        
+        <div class="header-right">
+            <div class="search-box">
+                <input type="text" id="globalSearch" placeholder="Buscar cards..." autocomplete="off">
+                <span class="search-icon">🔍</span>
+            </div>
+            
+            <div class="header-actions">
+                <button class="action-btn" id="btnNewCard" title="Novo Card">
+                    <span>+ Card</span>
+                </button>
+                <button class="action-btn secondary" id="btnManageTypes" title="Gerenciar Tipos">
+                    <span>⚙ Tipos</span>
+                </button>
+                <button class="icon-btn" id="btnExport" title="Exportar">📤</button>
+                <button class="icon-btn" id="btnImport" title="Importar">📥</button>
+                <button class="icon-btn" id="btnTheme" title="Alternar Tema">🌙</button>
+            </div>
+        </div>
+    </header>
+
+    <!-- ==================== SIDEBAR ==================== -->
+    <aside class="sidebar" id="sidebar">
+        <div class="sidebar-section">
+            <h3 class="sidebar-title">📁 Filtros</h3>
+            
+            <div class="filter-group">
+                <label>Tipo</label>
+                <select id="filterType">
+                    <option value="">Todos os tipos</option>
+                </select>
+            </div>
+            
+            <div class="filter-group">
+                <label>Tags</label>
+                <div id="filterTags" class="tag-filter-list"></div>
+            </div>
+            
+            <button class="btn-clear-filters" id="btnClearFilters">Limpar Filtros</button>
+        </div>
+        
+        <div class="sidebar-section">
+            <h3 class="sidebar-title">⭐ Favoritos</h3>
+            <div id="favoritesList" class="favorites-list">
+                <p class="empty-message">Nenhum favorito</p>
+            </div>
+        </div>
+        
+        <div class="sidebar-section">
+            <h3 class="sidebar-title">🕐 Recentes</h3>
+            <div id="recentsList" class="recents-list">
+                <p class="empty-message">Nenhum card recente</p>
+            </div>
+        </div>
+        
+        <div class="sidebar-section">
+            <h3 class="sidebar-title">📊 Estatísticas</h3>
+            <div class="stats-grid" id="statsGrid">
+                <div class="stat-item">
+                    <span class="stat-value" id="statTotalCards">0</span>
+                    <span class="stat-label">Cards</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-value" id="statTotalConnections">0</span>
+                    <span class="stat-label">Conexões</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-value" id="statTotalTypes">0</span>
+                    <span class="stat-label">Tipos</span>
+                </div>
+            </div>
+        </div>
+    </aside>
+
+    <!-- ==================== MAIN CONTENT ==================== -->
+    <main class="main-content" id="mainContent">
+        
+        <!-- VIEW: GRID -->
+        <div class="view-container active" id="viewGrid">
+            <div class="grid-toolbar">
+                <div class="grid-info">
+                    <span id="gridCardCount">0 cards</span>
+                </div>
+                <div class="grid-options">
+                    <button class="grid-size-btn active" data-size="medium">◫</button>
+                    <button class="grid-size-btn" data-size="large">▢</button>
+                    <button class="grid-size-btn" data-size="compact">▤</button>
+                </div>
+            </div>
+            <div class="cards-grid" id="cardsGrid">
+                <div class="empty-state" id="emptyState">
+                    <div class="empty-icon">🎴</div>
+                    <h2>Nenhum card ainda</h2>
+                    <p>Comece criando seu primeiro card para organizar sua sessão de RPG</p>
+                    <button class="btn-primary" id="btnEmptyNewCard">+ Criar Primeiro Card</button>
+                </div>
+            </div>
+        </div>
+        
+        <!-- VIEW: GRAPH -->
+        <div class="view-container" id="viewGraph">
+            <div class="graph-toolbar">
+                <button class="graph-tool-btn" id="btnZoomIn" title="Zoom In">+</button>
+                <button class="graph-tool-btn" id="btnZoomOut" title="Zoom Out">−</button>
+                <button class="graph-tool-btn" id="btnZoomReset" title="Reset">⟲</button>
+                <button class="graph-tool-btn" id="btnCenterGraph" title="Centralizar">◎</button>
+                <div class="graph-tool-separator"></div>
+                <button class="graph-tool-btn" id="btnAutoLayout" title="Auto Layout">⚡</button>
+            </div>
+            <div class="graph-container" id="graphContainer">
+                <canvas id="graphCanvas"></canvas>
+                <div class="graph-nodes" id="graphNodes"></div>
+            </div>
+            <div class="graph-minimap" id="graphMinimap">
+                <canvas id="minimapCanvas"></canvas>
+            </div>
+        </div>
+        
+        <!-- VIEW: DETAIL -->
+        <div class="view-container" id="viewDetail">
+            <div class="detail-empty" id="detailEmpty">
+                <div class="empty-icon">📖</div>
+                <h2>Selecione um card</h2>
+                <p>Clique em um card para ver seus detalhes</p>
+            </div>
+            <div class="detail-content" id="detailContent" style="display: none;">
+                <div class="detail-header">
+                    <button class="detail-nav-btn" id="btnDetailBack" title="Voltar">←</button>
+                    <div class="detail-breadcrumb" id="detailBreadcrumb"></div>
+                    <div class="detail-actions">
+                        <button class="icon-btn" id="btnDetailFavorite" title="Favoritar">☆</button>
+                        <button class="icon-btn" id="btnDetailEdit" title="Editar">✏️</button>
+                        <button class="icon-btn danger" id="btnDetailDelete" title="Excluir">🗑️</button>
+                    </div>
+                </div>
+                <div class="detail-body" id="detailBody"></div>
+                <div class="detail-connections" id="detailConnections"></div>
+            </div>
+        </div>
+    </main>
+
+    <!-- ==================== MODALS ==================== -->
+    
+    <!-- Modal: Criar/Editar Card -->
+    <div class="modal" id="modalCard">
+        <div class="modal-backdrop"></div>
+        <div class="modal-content modal-large">
+            <div class="modal-header">
+                <h2 id="modalCardTitle">Novo Card</h2>
+                <button class="modal-close" data-close-modal>&times;</button>
+            </div>
+            <div class="modal-body">
+                <form id="formCard">
+                    <input type="hidden" id="cardId">
+                    
+                    <div class="form-row">
+                        <div class="form-group flex-2">
+                            <label for="cardTitle">Título *</label>
+                            <input type="text" id="cardTitle" required placeholder="Nome do card">
+                        </div>
+                        <div class="form-group flex-1">
+                            <label for="cardType">Tipo *</label>
+                            <select id="cardType" required></select>
+                        </div>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="cardSummary">Resumo Rápido</label>
+                        <textarea id="cardSummary" rows="2" placeholder="Descrição breve para referência rápida"></textarea>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="cardContent">Conteúdo Principal</label>
+                        <div class="editor-toolbar">
+                            <button type="button" class="editor-btn" data-format="bold" title="Negrito">B</button>
+                            <button type="button" class="editor-btn" data-format="italic" title="Itálico">I</button>
+                            <button type="button" class="editor-btn" data-format="heading" title="Título">H</button>
+                            <button type="button" class="editor-btn" data-format="list" title="Lista">•</button>
+                            <button type="button" class="editor-btn" data-format="quote" title="Citação">"</button>
+                        </div>
+                        <textarea id="cardContent" rows="8" placeholder="Conteúdo detalhado (suporta Markdown)"></textarea>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>Tags</label>
+                        <div class="tags-input-container">
+                            <div id="cardTagsList" class="tags-list"></div>
+                            <input type="text" id="cardTagsInput" placeholder="Digite e pressione Enter">
+                        </div>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>Campos Personalizados</label>
+                        <div id="customFieldsContainer" class="custom-fields-container"></div>
+                        <button type="button" class="btn-add-field" id="btnAddCustomField">+ Adicionar Campo</button>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>Conexões</label>
+                        <div id="connectionsContainer" class="connections-editor"></div>
+                        <button type="button" class="btn-add-connection" id="btnAddConnection">+ Adicionar Conexão</button>
+                    </div>
+                    
+                    <div class="form-row">
+                        <div class="form-group flex-1">
+                            <label for="cardColor">Cor do Card</label>
+                            <input type="color" id="cardColor" value="#6366f1">
+                        </div>
+                        <div class="form-group flex-1">
+                            <label class="checkbox-label">
+                                <input type="checkbox" id="cardFavorite">
+                                <span>⭐ Marcar como favorito</span>
+                            </label>
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn-secondary" data-close-modal>Cancelar</button>
+                <button type="submit" class="btn-primary" form="formCard">Salvar Card</button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Modal: Gerenciar Tipos -->
+    <div class="modal" id="modalTypes">
+        <div class="modal-backdrop"></div>
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Gerenciar Tipos de Card</h2>
+                <button class="modal-close" data-close-modal>&times;</button>
+            </div>
+            <div class="modal-body">
+                <div id="typesList" class="types-list"></div>
+                <div class="new-type-form">
+                    <h4>Criar Novo Tipo</h4>
+                    <div class="form-row">
+                        <div class="form-group flex-2">
+                            <input type="text" id="newTypeName" placeholder="Nome do tipo">
+                        </div>
+                        <div class="form-group flex-1">
+                            <input type="text" id="newTypeIcon" placeholder="Emoji" maxlength="2">
+                        </div>
+                        <div class="form-group flex-1">
+                            <input type="color" id="newTypeColor" value="#6366f1">
+                        </div>
+                    </div>
+                    <button type="button" class="btn-primary" id="btnCreateType">Criar Tipo</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Modal: Importar -->
+    <div class="modal" id="modalImport">
+        <div class="modal-backdrop"></div>
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Importar Dados</h2>
+                <button class="modal-close" data-close-modal>&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="import-options">
+                    <label class="import-option">
+                        <input type="radio" name="importMode" value="replace" checked>
+                        <span>Substituir todos os dados</span>
+                    </label>
+                    <label class="import-option">
+                        <input type="radio" name="importMode" value="merge">
+                        <span>Mesclar com dados existentes</span>
+                    </label>
+                </div>
+                <div class="drop-zone" id="dropZone">
+                    <div class="drop-icon">📁</div>
+                    <p>Arraste um arquivo JSON aqui</p>
+                    <p class="drop-hint">ou</p>
+                    <input type="file" id="fileInput" accept=".json" hidden>
+                    <button type="button" class="btn-secondary" id="btnSelectFile">Selecionar Arquivo</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Modal: Confirmar Exclusão -->
+    <div class="modal" id="modalConfirm">
+        <div class="modal-backdrop"></div>
+        <div class="modal-content modal-small">
+            <div class="modal-header">
+                <h2 id="confirmTitle">Confirmar</h2>
+                <button class="modal-close" data-close-modal>&times;</button>
+            </div>
+            <div class="modal-body">
+                <p id="confirmMessage">Tem certeza?</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn-secondary" data-close-modal>Cancelar</button>
+                <button type="button" class="btn-danger" id="btnConfirmAction">Confirmar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Container -->
+    <div class="toast-container" id="toastContainer"></div>
+
+    <!-- ==================== SCRIPTS ==================== -->
+    <script src="js/utils.js"></script>
+    <script src="js/data.js"></script>
+    <script src="js/markdown.js"></script>
+    <script src="js/cards.js"></script>
+    <script src="js/connections.js"></script>
+    <script src="js/graph.js"></script>
+    <script src="js/views.js"></script>
+    <script src="js/ui.js"></script>
+    <script src="js/app.js"></script>
+</body>
+</html>

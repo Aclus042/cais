@@ -190,6 +190,14 @@ body {
     transform: translateY(-1px);
 }
 
+.action-btn.save-btn {
+    background: var(--success-color);
+}
+
+.action-btn.save-btn:hover {
+    background: #16a34a;
+}
+
 .action-btn.secondary {
     background: var(--bg-tertiary);
     color: var(--text-primary);

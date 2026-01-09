@@ -433,19 +433,19 @@ body {
 
 .cards-grid {
     display: grid;
-    gap: 1rem;
+    gap: 1.25rem;
 }
 
 .cards-grid[data-size="compact"] {
-    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
 }
 
 .cards-grid[data-size="medium"] {
-    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
 }
 
 .cards-grid[data-size="large"] {
-    grid-template-columns: repeat(auto-fill, minmax(400px, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(450px, 1fr));
 }
 
 /* ==================== EMPTY STATE ==================== */

@@ -24,6 +24,11 @@ const CardRenderer = (function() {
         const totalConnections = connectionsCount + incomingCount;
         
         element.innerHTML = `
+            ${card.image ? `
+                <div class="card-image">
+                    <img src="${card.image}" alt="${Utils.escapeHtml(card.title)}" loading="lazy">
+                </div>
+            ` : ''}
             <div class="card-header">
                 <div class="card-icon">${type?.icon || '📄'}</div>
                 <div class="card-title-group">

@@ -171,8 +171,20 @@
                         <button class="icon-btn danger" id="btnDetailDelete" title="Excluir">🗑️</button>
                     </div>
                 </div>
-                <div class="detail-body" id="detailBody"></div>
-                <div class="detail-connections" id="detailConnections"></div>
+                <div class="detail-layout">
+                    <div class="detail-main">
+                        <div class="detail-body" id="detailBody"></div>
+                    </div>
+                    <div class="detail-sidebar">
+                        <div class="detail-image-block" id="detailImageBlock" style="display: none;">
+                            <h3>🖼️ Imagem</h3>
+                            <div class="detail-image-full">
+                                <img id="detailImageFull" src="" alt="">
+                            </div>
+                        </div>
+                        <div class="detail-connections" id="detailConnections"></div>
+                    </div>
+                </div>
             </div>
         </div>
     </main>
@@ -199,6 +211,22 @@
                         <div class="form-group flex-1">
                             <label for="cardType">Tipo *</label>
                             <select id="cardType" required></select>
+                        </div>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="cardImage">Imagem</label>
+                        <div class="image-input-container">
+                            <div class="image-preview" id="cardImagePreview">
+                                <span class="image-placeholder">📷 Nenhuma imagem</span>
+                            </div>
+                            <div class="image-input-actions">
+                                <input type="text" id="cardImageUrl" placeholder="Cole a URL da imagem...">
+                                <input type="file" id="cardImageFile" accept="image/*" hidden>
+                                <button type="button" class="btn-secondary btn-sm" id="btnSelectImage">Escolher</button>
+                                <button type="button" class="btn-secondary btn-sm" id="btnCropImage" disabled>Recortar</button>
+                                <button type="button" class="btn-secondary btn-sm btn-danger-outline" id="btnRemoveImage">Remover</button>
+                            </div>
                         </div>
                     </div>
                     
@@ -333,6 +361,49 @@
             <div class="modal-footer">
                 <button type="button" class="btn-secondary" data-close-modal>Cancelar</button>
                 <button type="button" class="btn-danger" id="btnConfirmAction">Confirmar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal: Crop de Imagem -->
+    <div class="modal" id="modalCrop">
+        <div class="modal-backdrop"></div>
+        <div class="modal-content modal-large">
+            <div class="modal-header">
+                <h2>Recortar Imagem</h2>
+                <button class="modal-close" data-close-modal>&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="crop-container">
+                    <div class="crop-workspace" id="cropWorkspace">
+                        <img id="cropImage" src="" alt="Imagem para recortar">
+                        <div class="crop-overlay" id="cropOverlay"></div>
+                        <div class="crop-selection" id="cropSelection">
+                            <div class="crop-handle" data-handle="nw"></div>
+                            <div class="crop-handle" data-handle="ne"></div>
+                            <div class="crop-handle" data-handle="sw"></div>
+                            <div class="crop-handle" data-handle="se"></div>
+                            <div class="crop-handle" data-handle="n"></div>
+                            <div class="crop-handle" data-handle="s"></div>
+                            <div class="crop-handle" data-handle="e"></div>
+                            <div class="crop-handle" data-handle="w"></div>
+                        </div>
+                    </div>
+                </div>
+                <div class="crop-options">
+                    <div class="crop-aspect-ratios">
+                        <label>Proporção:</label>
+                        <button type="button" class="aspect-btn active" data-aspect="free">Livre</button>
+                        <button type="button" class="aspect-btn" data-aspect="1:1">1:1</button>
+                        <button type="button" class="aspect-btn" data-aspect="16:9">16:9</button>
+                        <button type="button" class="aspect-btn" data-aspect="4:3">4:3</button>
+                        <button type="button" class="aspect-btn" data-aspect="3:2">3:2</button>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn-secondary" data-close-modal>Cancelar</button>
+                <button type="button" class="btn-primary" id="btnApplyCrop">Aplicar Recorte</button>
             </div>
         </div>
     </div>

@@ -24,6 +24,8 @@ const ViewManager = (function() {
         detailContent: null,
         detailBody: null,
         detailConnections: null,
+        detailImageBlock: null,
+        detailImageFull: null,
         detailBreadcrumb: null,
         btnDetailBack: null,
         btnDetailFavorite: null,
@@ -61,6 +63,8 @@ const ViewManager = (function() {
         elements.detailContent = document.getElementById('detailContent');
         elements.detailBody = document.getElementById('detailBody');
         elements.detailConnections = document.getElementById('detailConnections');
+        elements.detailImageBlock = document.getElementById('detailImageBlock');
+        elements.detailImageFull = document.getElementById('detailImageFull');
         elements.detailBreadcrumb = document.getElementById('detailBreadcrumb');
         elements.btnDetailBack = document.getElementById('btnDetailBack');
         elements.btnDetailFavorite = document.getElementById('btnDetailFavorite');
@@ -275,6 +279,15 @@ const ViewManager = (function() {
         // Renderiza body
         elements.detailBody.innerHTML = CardRenderer.renderCardDetail(card);
         elements.detailBody.style.setProperty('--card-color', card.color || '#6366f1');
+        
+        // Renderiza imagem na sidebar se existir
+        if (card.image && elements.detailImageBlock && elements.detailImageFull) {
+            elements.detailImageBlock.style.display = 'block';
+            elements.detailImageFull.src = card.image;
+            elements.detailImageFull.alt = card.title;
+        } else if (elements.detailImageBlock) {
+            elements.detailImageBlock.style.display = 'none';
+        }
         
         // Renderiza conexões
         elements.detailConnections.innerHTML = CardRenderer.renderCardConnections(card);

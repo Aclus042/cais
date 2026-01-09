@@ -123,6 +123,7 @@ const DataManager = (function() {
             typeId: cardData.typeId || 'npc',
             summary: cardData.summary || '',
             content: cardData.content || '',
+            image: cardData.image || null,
             tags: cardData.tags || [],
             customFields: cardData.customFields || [],
             connections: cardData.connections || [],
